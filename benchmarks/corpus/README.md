@@ -19,7 +19,7 @@ Each line is a JSON object:
 
 ## Generating Corpus
 
-Use the SE oracle to rate puzzles:
+Use the SE reference to rate puzzles:
 
 ```bash
 java -cp SudokuExplainer.jar diuf.sudoku.test.serate \

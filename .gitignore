@@ -140,3 +140,6 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# SE reference JAR (downloaded locally via tools/se-reference/setup.sh)
+tools/se-reference/*.jar

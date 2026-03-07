@@ -49,7 +49,7 @@ java -cp SudokuExplainer.jar diuf.sudoku.test.serate \
 ```
 
 The `tools/` directory will contain wrapper scripts to run SE and compare output.
-A `tools/se-oracle/` directory will hold the SE jar and integration harness.
+A `tools/se-reference/` directory holds the SE jar and integration harness.
 
 ---
 

@@ -598,10 +598,10 @@ Claude Code generates everything listed below.
 
 - [ ] `benchmarks/runner.ts`
 - [ ] `benchmarks/corpus/` with seed puzzles + `README.md`
-- [ ] `tools/se-oracle/` — SudokuExplainer Java CLI integration
+- [ ] `tools/se-reference/` — SudokuExplainer Java CLI integration
 - [ ] SE jar download/setup script
 - [ ] Wrapper to run SE `serate` and compare output against TSudoku
-- [ ] CI job to validate TSudoku ratings against SE oracle
+- [ ] CI job to validate TSudoku ratings against SE reference
 
 **Deliverable:** `pnpm install && pnpm turbo build` succeeds. `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm benchmark` all pass on empty stubs.
@@ -715,7 +715,7 @@ Model routing: technique name → Haiku; explanation + walkthrough → Sonnet.
 
 ---
 
-## SE Oracle (Backend / Corpus Generation)
+## SE Reference (Backend / Corpus Generation)
 
 ```bash
 java -cp SudokuExplainer.jar diuf.sudoku.test.serate \

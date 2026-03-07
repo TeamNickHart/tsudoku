@@ -14,7 +14,7 @@ Chain techniques (SE 6.2+) are computationally expensive and account for <5% of 
 We will split technique execution at SE difficulty 4.4:
 
 - **On-device** (`@tsudoku/core`): SE <= 4.4, runs offline on any platform
-- **Server** (Node.js API): SE > 4.4, chain techniques + SE oracle fallback
+- **Server** (Node.js API): SE > 4.4, chain techniques + SE reference fallback
 - **AI hints** (Claude API): Natural language explanations, token-gated
 
 ## Rationale

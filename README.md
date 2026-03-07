@@ -22,6 +22,8 @@ Sudoku is a logic puzzle played on a 9×9 grid divided into nine 3×3 boxes. The
 
 Most Sudoku solvers use backtracking — they find a solution but cannot explain _how_. TSudoku identifies the named human technique that applies at each step, explains why it works, and rates puzzle difficulty by the hardest technique required. This mirrors how competitive solvers and publishers like [Nikoli](https://www.nikoli.co.jp) think about Sudoku difficulty.
 
+The **planned** API will look like:
+
 ```typescript
 import { createGrid, Solver } from '@tsudoku/core';
 
@@ -41,20 +43,31 @@ const hint = solver.getNextHint(grid);
 // }
 ```
 
+> **Note:** This API is not yet implemented. TSudoku is currently in Phase 0 (scaffolding).
+
+---
+
+## Project Status
+
+TSudoku is in **Phase 0** (scaffolding). The monorepo structure, CI pipeline,
+and documentation site are complete, but no solving techniques are implemented
+yet. See the [roadmap](https://tsudoku.dev/guide/) for what's coming next.
+
 ---
 
 ## Packages
 
 This is a pnpm monorepo. Packages are published under the `@tsudoku` scope.
+All packages are currently scaffolded but not yet functional.
 
-| Package                                            | Description                                                             |
-| -------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`@tsudoku/core`](./packages/core)                 | Board model, candidate engine, technique detectors, solver orchestrator |
-| [`@tsudoku/solver`](./packages/solver)             | Human-style solver with full solve path recording                       |
-| [`@tsudoku/generator`](./packages/generator)       | Puzzle generation and SE-compatible difficulty rating                   |
-| [`@tsudoku/cli`](./packages/cli)                   | Command-line interface for solving, hinting, generating, benchmarking   |
-| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks                                       |
-| [`@tsudoku/ml`](./packages/ml)                     | ONNX model training pipeline and on-device inference _(roadmap)_        |
+| Package                                            | Description                                                             | Status      |
+| -------------------------------------------------- | ----------------------------------------------------------------------- | ----------- |
+| [`@tsudoku/core`](./packages/core)                 | Board model, candidate engine, technique detectors, solver orchestrator | Scaffold    |
+| [`@tsudoku/solver`](./packages/solver)             | Human-style solver with full solve path recording                       | Scaffold    |
+| [`@tsudoku/generator`](./packages/generator)       | Puzzle generation and SE-compatible difficulty rating                   | Scaffold    |
+| [`@tsudoku/cli`](./packages/cli)                   | Command-line interface for solving, hinting, generating, benchmarking   | Scaffold    |
+| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks                                       | Scaffold    |
+| [`@tsudoku/ml`](./packages/ml)                     | ONNX model training pipeline and on-device inference                    | Not started |
 
 ---
 
@@ -62,25 +75,27 @@ This is a pnpm monorepo. Packages are published under the `@tsudoku` scope.
 
 Techniques are implemented in phases matching SudokuExplainer's difficulty rating scale. For technique descriptions and visual examples, see [SudokuWiki](https://www.sudokuwiki.org).
 
-### Phase 1 — Direct (SE 1.0–2.5) ✅
+### Phase 1 — Direct (SE 1.0–2.5) — Not started
 
 Solvable without writing candidates: Last Value, Hidden Singles, Direct Pointing/Claiming, Direct Hidden Pairs/Triplets, Naked Singles.
 
-### Phase 2 — Candidate-based (SE 2.6–4.4) ✅
+### Phase 2 — Candidate-based (SE 2.6–4.4) — Not started
 
 Pointing & Claiming (Locked Candidates), Naked/Hidden Sets (pairs through quads), X-Wing, Swordfish, Jellyfish, XY-Wing, XYZ-Wing.
 
-### Phase 3 — Uniqueness (SE 4.5–6.0) 🚧
+### Phase 3 — Uniqueness (SE 4.5–6.0) — Not started
 
 Unique Rectangles (types 1–4), Unique Loops, Bivalue Universal Graves.
 
-### Phase 4 — Chains (SE 6.2+) 🗺️
+### Phase 4 — Chains (SE 6.2+) — Not started
 
 Aligned Pair Exclusion, Bidirectional X/Y-Cycles, Forcing Chains, Nishio, Dynamic and Nested variants.
 
 ---
 
-## CLI Quick Start
+## CLI Quick Start (Planned)
+
+> **Note:** The CLI is not yet implemented. The **planned** usage will look like:
 
 ```bash
 npm install -g @tsudoku/cli
