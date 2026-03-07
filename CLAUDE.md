@@ -73,26 +73,27 @@ tsudoku/                          ← pnpm workspace root
 
 ## Toolchain
 
-| Tool | Purpose | Config file |
-|---|---|---|
-| pnpm workspaces | Monorepo package management | `pnpm-workspace.yaml` |
-| Turborepo | Build orchestration + caching | `turbo.json` |
-| TypeScript 5.x | Strict mode everywhere | `tsconfig.base.json` |
-| Vitest | Unit + integration testing | `vitest.config.ts` per package |
-| ESLint | Linting | `.eslintrc.cjs` |
-| Prettier | Formatting | `.prettierrc` |
-| Husky + lint-staged | Pre-commit hooks | `.husky/` |
-| GitHub Actions | CI/CD | `.github/workflows/` |
-| VitePress | Docs site | `docs/.vitepress/config.ts` |
-| TypeDoc | API doc generation | `typedoc.json` |
-| Changesets | Versioning + changelog | `.changeset/` |
-| Commander | CLI framework | in `packages/cli` |
+| Tool                | Purpose                       | Config file                    |
+| ------------------- | ----------------------------- | ------------------------------ |
+| pnpm workspaces     | Monorepo package management   | `pnpm-workspace.yaml`          |
+| Turborepo           | Build orchestration + caching | `turbo.json`                   |
+| TypeScript 5.x      | Strict mode everywhere        | `tsconfig.base.json`           |
+| Vitest              | Unit + integration testing    | `vitest.config.ts` per package |
+| ESLint              | Linting                       | `.eslintrc.cjs`                |
+| Prettier            | Formatting                    | `.prettierrc`                  |
+| Husky + lint-staged | Pre-commit hooks              | `.husky/`                      |
+| GitHub Actions      | CI/CD                         | `.github/workflows/`           |
+| VitePress           | Docs site                     | `docs/.vitepress/config.ts`    |
+| TypeDoc             | API doc generation            | `typedoc.json`                 |
+| Changesets          | Versioning + changelog        | `.changeset/`                  |
+| Commander           | CLI framework                 | in `packages/cli`              |
 
 ---
 
 ## TypeScript Configuration
 
 ### tsconfig.base.json (root — all packages extend this)
+
 ```json
 {
   "compilerOptions": {
@@ -115,6 +116,7 @@ tsudoku/                          ← pnpm workspace root
 ```
 
 **Rules:**
+
 - No `any`. Ever. Use `unknown` with narrowing.
 - No non-null assertions (`!`) without a comment explaining why it's safe.
 - All exported functions must have explicit return types.
@@ -149,6 +151,7 @@ tsudoku/                          ← pnpm workspace root
 ```
 
 **Key commands:**
+
 ```bash
 pnpm build              # build all packages in dependency order
 pnpm test               # run all tests
@@ -177,15 +180,15 @@ const candidateMask = (digit: number): number => 1 << (digit - 1);
 const hasCandidate = (candidates: number, digit: number): boolean =>
   (candidates & candidateMask(digit)) !== 0;
 const candidateList = (candidates: number): number[] =>
-  Array.from({ length: 9 }, (_, i) => i + 1).filter(d => hasCandidate(candidates, d));
-const candidateCount = (candidates: number): number =>
-  candidates.toString(2).split('1').length - 1; // or use Math.popcount when available
+  Array.from({ length: 9 }, (_, i) => i + 1).filter((d) => hasCandidate(candidates, d));
+const candidateCount = (candidates: number): number => candidates.toString(2).split('1').length - 1; // or use Math.popcount when available
 
 // Full candidate set (all 9 digits): 0b111111111 = 511
 const FULL_CANDIDATES = 0b111111111;
 ```
 
 ### Grid (immutable)
+
 ```typescript
 interface Grid {
   readonly cells: readonly Cell[];
@@ -204,14 +207,15 @@ interface Grid {
 ```
 
 ### Cell (immutable)
+
 ```typescript
 interface Cell {
-  readonly index: number;          // 0–80
-  readonly row: number;            // 0–8
-  readonly col: number;            // 0–8
-  readonly box: number;            // 0–8
-  readonly value: number | null;   // null = unsolved
-  readonly candidates: number;     // bitmask
+  readonly index: number; // 0–80
+  readonly row: number; // 0–8
+  readonly col: number; // 0–8
+  readonly box: number; // 0–8
+  readonly value: number | null; // null = unsolved
+  readonly candidates: number; // bitmask
   readonly isGiven: boolean;
   // Derived (computed lazily or eagerly — implementation detail)
   readonly candidateList: readonly number[];
@@ -220,11 +224,12 @@ interface Cell {
 ```
 
 ### Region
+
 ```typescript
 interface Region {
   readonly type: 'row' | 'col' | 'box';
-  readonly index: number;           // 0–8 within type
-  readonly cells: readonly Cell[];  // always 9 cells
+  readonly index: number; // 0–8 within type
+  readonly cells: readonly Cell[]; // always 9 cells
   getCandidateCells(digit: number): readonly Cell[];
   getUnsolvedCells(): readonly Cell[];
 }
@@ -243,10 +248,10 @@ type Hint = DirectHint | EliminationHint;
 interface DirectHint {
   readonly type: 'direct';
   readonly technique: Technique;
-  readonly difficulty: number;        // SE difficulty rating
-  readonly cell: number;              // cell index 0–80
-  readonly digit: number;             // digit to place (1–9)
-  readonly explanation: string;       // human-readable why
+  readonly difficulty: number; // SE difficulty rating
+  readonly cell: number; // cell index 0–80
+  readonly digit: number; // digit to place (1–9)
+  readonly explanation: string; // human-readable why
   readonly involvedCells: readonly number[];
   readonly involvedCandidates: ReadonlyMap<number, readonly number[]>;
 }
@@ -264,6 +269,7 @@ interface EliminationHint {
 ```
 
 ### Applying Hints (always immutable)
+
 ```typescript
 // Every hint application returns a NEW grid — never mutate
 function applyHint(grid: Grid, hint: Hint): Grid;
@@ -292,6 +298,7 @@ interface HintProducer {
 ```
 
 ### Adding a New Technique
+
 1. Create `packages/core/src/techniques/phaseN/MyTechnique.ts`
 2. Implement `HintProducer`
 3. Create `packages/core/tests/techniques/phaseN/MyTechnique.test.ts`
@@ -310,32 +317,32 @@ interface HintProducer {
 
 export const DEFAULT_PRODUCERS: HintProducer[] = [
   // Phase 1 — Direct (no candidates needed)
-  new NakedSingle(),              // 1.0 / 2.3
-  new HiddenSingle('box'),        // 1.2
-  new HiddenSingle('line'),       // 1.5
-  new DirectPointing(),           // 1.7
-  new DirectClaiming(),           // 1.9
-  new DirectHiddenSet(2),         // 2.0
-  new DirectHiddenSet(3),         // 2.5
+  new NakedSingle(), // 1.0 / 2.3
+  new HiddenSingle('box'), // 1.2
+  new HiddenSingle('line'), // 1.5
+  new DirectPointing(), // 1.7
+  new DirectClaiming(), // 1.9
+  new DirectHiddenSet(2), // 2.0
+  new DirectHiddenSet(3), // 2.5
 
   // Phase 2 — Candidate-based
-  new Locking('pointing'),        // 2.6
-  new Locking('claiming'),        // 2.8
-  new NakedSet(2),                // 3.0
-  new Fisherman(2),               // 3.2 — X-Wing
-  new HiddenSet(2),               // 3.4
-  new NakedSet(3),                // 3.6
-  new Fisherman(3),               // 3.8 — Swordfish
-  new HiddenSet(3),               // 4.0
-  new XYWing(),                   // 4.2
-  new XYWing({ xyz: true }),      // 4.4
+  new Locking('pointing'), // 2.6
+  new Locking('claiming'), // 2.8
+  new NakedSet(2), // 3.0
+  new Fisherman(2), // 3.2 — X-Wing
+  new HiddenSet(2), // 3.4
+  new NakedSet(3), // 3.6
+  new Fisherman(3), // 3.8 — Swordfish
+  new HiddenSet(3), // 4.0
+  new XYWing(), // 4.2
+  new XYWing({ xyz: true }), // 4.4
 
   // Phase 3 — Uniqueness
-  new UniqueRectangle(),          // 4.5–5.0
-  new NakedSet(4),                // 5.0
-  new Fisherman(4),               // 5.2 — Jellyfish
-  new HiddenSet(4),               // 5.4
-  new BivalueUniversalGrave(),    // 5.6–6.0
+  new UniqueRectangle(), // 4.5–5.0
+  new NakedSet(4), // 5.0
+  new Fisherman(4), // 5.2 — Jellyfish
+  new HiddenSet(4), // 5.4
+  new BivalueUniversalGrave(), // 5.6–6.0
 
   // Phase 4 — Chains (server-side only, not in default mobile producers)
   // new AlignedPairExclusion(),  // 6.2
@@ -396,7 +403,7 @@ class Solver {
   getNextHint(grid: Grid): Hint | null {
     for (const producer of this.producers) {
       let found: Hint | null = null;
-      producer.getHints(grid, hint => {
+      producer.getHints(grid, (hint) => {
         found = hint;
         return 'stop'; // short-circuit
       });
@@ -409,7 +416,9 @@ class Solver {
   getAllHints(grid: Grid): Hint[] {
     const hints: Hint[] = [];
     for (const producer of this.producers) {
-      producer.getHints(grid, hint => { hints.push(hint); });
+      producer.getHints(grid, (hint) => {
+        hints.push(hint);
+      });
     }
     return hints;
   }
@@ -483,12 +492,14 @@ Example: `5300700006001950000980000608000600034008030017000200060600002800004190
 ## Testing Conventions
 
 ### Test file naming
+
 ```
 packages/core/src/techniques/phase1/NakedSingle.ts
 packages/core/tests/techniques/phase1/NakedSingle.test.ts
 ```
 
 ### Required tests for every technique
+
 ```typescript
 describe('NakedSingle', () => {
   it('detects naked single when one candidate remains', () => { ... });
@@ -501,6 +512,7 @@ describe('NakedSingle', () => {
 ```
 
 ### Test utilities to build
+
 ```typescript
 // packages/core/tests/helpers.ts
 createGridFromString(puzzle: string): Grid
@@ -515,6 +527,7 @@ loadCorpus(technique: Technique): TrainingSample[]
 ## AI Hint System (App Layer — not in core)
 
 ### Architecture
+
 ```
 On-device (@tsudoku/core):  L1–L3 techniques (SE ≤ 4.4), instant, offline
 Server API (Node):           L4+ techniques + SE oracle for chains
@@ -522,6 +535,7 @@ Claude API:                  Natural language hints, token-gated
 ```
 
 ### Token Economy
+
 ```
 Free:          Naked singles hints (rule engine, no cost)
 1 token:       Technique name only
@@ -531,12 +545,15 @@ Free:          Naked singles hints (rule engine, no cost)
 ```
 
 ### Hint Validation Rule
+
 ALL Claude API responses must be validated against board state before:
+
 1. Displaying to user
 2. Debiting tokens
-Validation failure → fall back to rule engine hint, no charge.
+   Validation failure → fall back to rule engine hint, no charge.
 
 ### Model Selection
+
 ```
 Technique name:   claude-haiku  (fast, cheap)
 Explanation:      claude-sonnet
@@ -544,6 +561,7 @@ Walkthrough:      claude-sonnet
 ```
 
 ### Caching
+
 Cache key: `sha256(puzzleId + candidateBitmaskHash)`.
 Same board state → same deterministic hint → cache hit serves multiple users.
 
@@ -564,12 +582,14 @@ Same board state → same deterministic hint → cache hit serves multiple users
 ## Key Reference Files
 
 When implementing a technique, consult in this order:
+
 1. SE Java source: https://github.com/1to9only/SudokuExplainer (see `diuf/sudoku/solver/rules/`)
 2. SudokuWiki technique pages: https://www.sudokuwiki.org (excellent visual explanations)
 3. SE technique wiki: https://github.com/SudokuMonster/SukakuExplainer/wiki
 4. Forum ratings reference: http://forum.enjoysudoku.com/how-is-the-difficulty-of-a-sudoku-puzzle-determined-t32249.html
 
 ### SE Java → TypeScript Class Mapping
+
 ```
 NakedSingle.java          → techniques/phase1/NakedSingle.ts
 HiddenSingle.java         → techniques/phase1/HiddenSingle.ts

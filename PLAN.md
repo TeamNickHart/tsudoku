@@ -30,19 +30,24 @@ TypeScript: Node.js, browsers, React Native. No JVM required.
 ## Locked Architecture Decisions
 
 ### 1. Immutable Grid State
+
 Every hint application returns a new `Grid`. Never mutate. Enables free
 undo/redo, trivial testing, React Native compatibility.
+
 ```typescript
-function applyHint(grid: Grid, hint: Hint): Grid
+function applyHint(grid: Grid, hint: Hint): Grid;
 ```
 
 ### 2. Candidate Bitmask
+
 Candidates as a 9-bit integer per cell. Bit `d-1` = digit `d` is a candidate.
 Faster than BitSet, simpler than arrays, bitwise ops for intersection/union/count.
 
 ### 3. Producer/Accumulator Pattern
+
 Every technique is a `HintProducer`. Solver runs them in difficulty order.
 Accumulator returns `'stop'` to short-circuit after first hit.
+
 ```typescript
 type HintAccumulator = (hint: Hint) => void | 'stop';
 interface HintProducer {
@@ -53,14 +58,17 @@ interface HintProducer {
 ```
 
 ### 4. DirectHint vs EliminationHint
+
 - `DirectHint` — places a digit
 - `EliminationHint` — removes candidates
 
 ### 5. Parameterized Techniques
+
 `NakedSet(size)` handles pairs/triples/quads. `Fisherman(size)` handles
 X-Wing/Swordfish/Jellyfish. Never create separate classes per size.
 
 ### 6. On-Device vs Server Split
+
 ```
 SE ≤ 4.4  → @tsudoku/core, on-device, Hermes, offline
 SE > 4.4  → server API (Node + SE CLI oracle)
@@ -68,6 +76,7 @@ AI hints  → Claude API, token-gated
 ```
 
 ### 7. pnpm + Turborepo + tsup
+
 - pnpm workspaces for monorepo
 - Turborepo with remote cache (TURBO_TOKEN) for build orchestration
 - tsup (esbuild) for ESM + CJS dual output from every package
@@ -129,26 +138,27 @@ tsudoku/
 
 ## Toolchain
 
-| Tool | Purpose |
-|---|---|
-| pnpm workspaces | Package management |
-| Turborepo | Build orchestration + remote caching |
-| tsup | ESM + CJS dual output (esbuild-based) |
-| TypeScript 5.x | Strict everywhere |
-| Vitest + fast-check | Unit, integration, property-based tests |
-| ESLint | typescript-eslint/recommended-type-checked |
-| Prettier | Formatting |
+| Tool                | Purpose                                               |
+| ------------------- | ----------------------------------------------------- |
+| pnpm workspaces     | Package management                                    |
+| Turborepo           | Build orchestration + remote caching                  |
+| tsup                | ESM + CJS dual output (esbuild-based)                 |
+| TypeScript 5.x      | Strict everywhere                                     |
+| Vitest + fast-check | Unit, integration, property-based tests               |
+| ESLint              | typescript-eslint/recommended-type-checked            |
+| Prettier            | Formatting                                            |
 | Husky + lint-staged | Pre-commit: lint + format + typecheck on staged files |
-| commitlint | Conventional commits enforced |
-| GitHub Actions | CI/CD |
-| VitePress | Docs site |
-| TypeDoc | API reference generation |
-| Changesets | Versioning + changelog + npm publish automation |
-| Commander | CLI framework |
-| nyc | Merge sharded coverage reports |
-| Codecov | Coverage tracking + PR comments |
+| commitlint          | Conventional commits enforced                         |
+| GitHub Actions      | CI/CD                                                 |
+| VitePress           | Docs site                                             |
+| TypeDoc             | API reference generation                              |
+| Changesets          | Versioning + changelog + npm publish automation       |
+| Commander           | CLI framework                                         |
+| nyc                 | Merge sharded coverage reports                        |
+| Codecov             | Coverage tracking + PR comments                       |
 
 ### tsup config (identical across all packages)
+
 ```typescript
 import { defineConfig } from 'tsup';
 export default defineConfig({
@@ -161,6 +171,7 @@ export default defineConfig({
 ```
 
 ### TypeScript (tsconfig.base.json — all packages extend this)
+
 ```json
 {
   "compilerOptions": {
@@ -183,21 +194,23 @@ export default defineConfig({
 ```
 
 ### Turborepo (turbo.json)
+
 ```json
 {
   "$schema": "https://turbo.build/schema.json",
   "pipeline": {
-    "build":      { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "typecheck":  { "dependsOn": ["^build"] },
-    "lint":       {},
-    "test":       { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
-    "benchmark":  { "dependsOn": ["build"], "outputs": ["benchmark-results/**"] },
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "lint": {},
+    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
+    "benchmark": { "dependsOn": ["build"], "outputs": ["benchmark-results/**"] },
     "docs:build": { "dependsOn": ["^build"] }
   }
 }
 ```
 
 ### Commit convention
+
 Format: `type(scope): description`
 Types: `feat` `fix` `test` `docs` `refactor` `chore` `bench` `adr`
 Scopes: `core` `cli` `solver` `generator` `react-native` `ml` `docs` `ci`
@@ -209,6 +222,7 @@ Scopes: `core` `cli` `solver` `generator` `react-native` `ml` `docs` `ci`
 ### ci.yml — Quality Gates (PR + push to main)
 
 **Principles:**
+
 - All independent gates run in parallel — no unnecessary serialization
 - pnpm store and node_modules cached by lockfile hash and shared across all jobs
 - Turborepo remote cache (`TURBO_TOKEN`) skips builds for unchanged packages
@@ -219,6 +233,7 @@ Scopes: `core` `cli` `solver` `generator` `react-native` `ml` `docs` `ci`
 - Single `ci-success` aggregator job — all branch protection rules point here
 
 **Job dependency graph:**
+
 ```
 setup ──┬──► build ──┬──► typecheck ──┐
         │            ├──► lint        ├──► ci-success
@@ -228,44 +243,46 @@ setup ──┬──► build ──┬──► typecheck ──┐
 
 **Jobs:**
 
-| Job | Needs | What it does |
-|---|---|---|
-| `setup` | — | pnpm install, prime pnpm + node_modules cache |
-| `build` | setup | `turbo build`, upload `dist/` artifacts, prime turbo cache |
-| `typecheck` | build | `turbo typecheck` |
-| `lint` | build | `turbo lint` |
-| `format` | setup | `prettier --check` (no build needed — fastest gate) |
-| `test (1/3, 2/3, 3/3)` | build | `vitest run --shard=N/3 --coverage`, upload coverage shard |
-| `coverage` | test | merge shards with nyc, assert 80% thresholds, upload to Codecov |
-| `benchmark` | build | SE parity check, fail if any implemented technique < 95% agreement |
-| `ci-success` | all above | exits 1 if any needed job failed; always runs |
+| Job                    | Needs     | What it does                                                       |
+| ---------------------- | --------- | ------------------------------------------------------------------ |
+| `setup`                | —         | pnpm install, prime pnpm + node_modules cache                      |
+| `build`                | setup     | `turbo build`, upload `dist/` artifacts, prime turbo cache         |
+| `typecheck`            | build     | `turbo typecheck`                                                  |
+| `lint`                 | build     | `turbo lint`                                                       |
+| `format`               | setup     | `prettier --check` (no build needed — fastest gate)                |
+| `test (1/3, 2/3, 3/3)` | build     | `vitest run --shard=N/3 --coverage`, upload coverage shard         |
+| `coverage`             | test      | merge shards with nyc, assert 80% thresholds, upload to Codecov    |
+| `benchmark`            | build     | SE parity check, fail if any implemented technique < 95% agreement |
+| `ci-success`           | all above | exits 1 if any needed job failed; always runs                      |
 
 **Cache keys:**
 
-| Cache | Key | Restore key |
-|---|---|---|
-| pnpm store | `pnpm-store-{os}-{lockfile-hash}` | `pnpm-store-{os}-` |
-| node_modules | `node-modules-{os}-{lockfile-hash}` | — |
-| `.turbo` | `turbo-{os}-{sha}` | `turbo-{os}-` |
-| benchmark corpus | `benchmark-corpus-{corpus-hash}` | — |
-| build artifacts | `actions/upload-artifact` 1-day retention | `download-artifact` |
-| coverage shards | `actions/upload-artifact` per shard | merged in `coverage` job |
+| Cache            | Key                                       | Restore key              |
+| ---------------- | ----------------------------------------- | ------------------------ |
+| pnpm store       | `pnpm-store-{os}-{lockfile-hash}`         | `pnpm-store-{os}-`       |
+| node_modules     | `node-modules-{os}-{lockfile-hash}`       | —                        |
+| `.turbo`         | `turbo-{os}-{sha}`                        | `turbo-{os}-`            |
+| benchmark corpus | `benchmark-corpus-{corpus-hash}`          | —                        |
+| build artifacts  | `actions/upload-artifact` 1-day retention | `download-artifact`      |
+| coverage shards  | `actions/upload-artifact` per shard       | merged in `coverage` job |
 
 ### release.yml — npm Publishing (push to main only)
 
 **Changesets flow:**
+
 1. Developer runs `pnpm changeset` → creates `.changeset/*.md` describing the change
 2. On merge to main: Changesets bot opens "Version Packages" PR bumping versions + changelogs
 3. On merge of that PR: `release.yml` publishes all changed packages to npm
 
 **Jobs:**
 
-| Job | What it does |
-|---|---|
-| `release` | `changesets/action`: opens version PR or publishes to npm |
+| Job           | What it does                                                      |
+| ------------- | ----------------------------------------------------------------- |
+| `release`     | `changesets/action`: opens version PR or publishes to npm         |
 | `deploy-docs` | Builds VitePress + TypeDoc, deploys to GitHub Pages (always runs) |
 
 **npm publish requirements:**
+
 - `NPM_CONFIG_PROVENANCE=true` — attestation links package to this repo + workflow run
 - Scope `@tsudoku` must exist on npmjs.org with automation token
 - All packages use `"publishConfig": { "access": "public", "provenance": true }`
@@ -282,6 +299,7 @@ setup ──┬──► build ──┬──► typecheck ──┐
 - `"files": ["dist", "README.md", "CHANGELOG.md"]`
 
 **Changesets config:**
+
 ```json
 {
   "changelog": "@changesets/changelog-github",
@@ -303,12 +321,14 @@ setup ──┬──► build ──┬──► typecheck ──┐
 ## Architecture Decision Records (ADR) System
 
 ### Purpose
+
 TSudoku is a multi-phase port spanning months and many contributors. ADRs capture
-*what* was decided, *why*, what alternatives were considered, and what consequences
+_what_ was decided, _why_, what alternatives were considered, and what consequences
 follow. Without them, contributors across phases will make inconsistent choices and
 lose the reasoning behind patterns that look arbitrary.
 
 ### Location
+
 `docs/adr/` — versioned alongside code, reviewed via PR like code.
 
 ### Claude Code must generate these files
@@ -316,6 +336,7 @@ lose the reasoning behind patterns that look arbitrary.
 **`docs/adr/README.md`** — ADR index with status table
 
 **`docs/adr/_template.md`** — template with these required sections:
+
 - Status, Date, Phase, Deciders
 - **Context** — what forces motivated this?
 - **Decision** — "We will..." (clear, direct)
@@ -327,17 +348,18 @@ lose the reasoning behind patterns that look arbitrary.
 
 **Initial ADRs (Phase 0):**
 
-| # | Title |
-|---|---|
-| 0001 | Immutable Grid State |
-| 0002 | Candidate Bitmask Representation |
-| 0003 | Producer/Accumulator Pattern |
-| 0004 | Parameterized Technique Classes |
-| 0005 | On-Device vs Server Technique Split |
-| 0006 | tsup for ESM+CJS Dual Output |
+| #    | Title                                          |
+| ---- | ---------------------------------------------- |
+| 0001 | Immutable Grid State                           |
+| 0002 | Candidate Bitmask Representation               |
+| 0003 | Producer/Accumulator Pattern                   |
+| 0004 | Parameterized Technique Classes                |
+| 0005 | On-Device vs Server Technique Split            |
+| 0006 | tsup for ESM+CJS Dual Output                   |
 | 0007 | Vitest + fast-check for Property-Based Testing |
 
 ### ADR rules
+
 - Never delete or rewrite an accepted ADR — supersede it with a new numbered ADR
 - The `adr` commit type is reserved for ADR additions/amendments
 - ADRs are merged via PR with at least one review
@@ -352,6 +374,7 @@ consistency document ensuring a uniform approach across all technique ports.
 ### Required sections
 
 **1. Guiding Principles**
+
 - Results over structure: match SE output exactly; internal impl may differ freely
 - Idiomatic TypeScript: no Java-isms (no null returns, no mutable shared state)
 - One technique, one file
@@ -359,6 +382,7 @@ consistency document ensuring a uniform approach across all technique ports.
 - ADR before divergence: non-trivial departures from Java structure need an ADR
 
 **2. Step-by-step porting workflow** for every technique:
+
 1. Locate Java source (`diuf/sudoku/solver/rules/TechniqueName.java`)
 2. Read SudokuWiki page (visual explanation)
 3. Write failing tests using SE output as expected values
@@ -368,6 +392,7 @@ consistency document ensuring a uniform approach across all technique ports.
 7. Run `pnpm benchmark --technique MyTechnique` — verify ≥ 99% agreement
 
 **3. Java → TypeScript translation patterns** with before/after code for:
+
 - `BitSet` → 9-bit integer bitmask
 - Mutable `Grid` modification → `applyHint()` returning new `Grid`
 - `HintsAccumulator` interface → `HintAccumulator` callback with `'stop'`
@@ -379,6 +404,7 @@ consistency document ensuring a uniform approach across all technique ports.
 **4. Candidate bitmask utility reference** — full API of `bitmask.ts` with examples
 
 **5. Required test cases per technique:**
+
 - Detection: finds pattern when present
 - Non-detection: returns nothing when absent
 - Short-circuit: stops after first hint when accumulator returns `'stop'`
@@ -386,6 +412,7 @@ consistency document ensuring a uniform approach across all technique ports.
 - SE corpus: agrees with SE on reference puzzles
 
 **6. Test helper reference** (`packages/core/tests/helpers.ts`):
+
 - `createGrid(puzzleString)` — 81-char string to Grid
 - `createGridWithState(puzzle, candidateOverrides)` — precise test setup
 - `getHints(producer, grid)` — collect all hints into array
@@ -394,6 +421,7 @@ consistency document ensuring a uniform approach across all technique ports.
 **7. Java class → TypeScript file mapping** (full table)
 
 **8. What NOT to do:**
+
 - Do not mutate Grid/Cell — always return new instances
 - Do not use `any`
 - Do not add chain techniques to `DEFAULT_PRODUCERS` (server-side only)
@@ -410,55 +438,55 @@ SE rating format: `ED=hardest/hardest_without_BF/easiest`
 
 ### Phase 1 — Direct (SE 1.0–2.5) — no candidates needed
 
-| Rating | Technique | SE Java Class |
-|---|---|---|
-| 1.0 | Last Value | `NakedSingle` |
-| 1.2 | Hidden Single in box | `HiddenSingle` |
-| 1.5 | Hidden Single in row/col | `HiddenSingle` |
-| 1.7 | Direct Pointing | `Locking` |
-| 1.9 | Direct Claiming | `Locking` |
-| 2.0 | Direct Hidden Pair | `HiddenSet(size=2, direct=true)` |
-| 2.3 | Naked Single | `NakedSingle` |
-| 2.5 | Direct Hidden Triplet | `HiddenSet(size=3, direct=true)` |
+| Rating | Technique                | SE Java Class                    |
+| ------ | ------------------------ | -------------------------------- |
+| 1.0    | Last Value               | `NakedSingle`                    |
+| 1.2    | Hidden Single in box     | `HiddenSingle`                   |
+| 1.5    | Hidden Single in row/col | `HiddenSingle`                   |
+| 1.7    | Direct Pointing          | `Locking`                        |
+| 1.9    | Direct Claiming          | `Locking`                        |
+| 2.0    | Direct Hidden Pair       | `HiddenSet(size=2, direct=true)` |
+| 2.3    | Naked Single             | `NakedSingle`                    |
+| 2.5    | Direct Hidden Triplet    | `HiddenSet(size=3, direct=true)` |
 
 ### Phase 2 — Candidate-based (SE 2.6–4.4)
 
-| Rating | Technique | SE Java Class |
-|---|---|---|
-| 2.6 | Pointing | `Locking` |
-| 2.8 | Claiming | `Locking` |
-| 3.0 | Naked Pair | `NakedSet(size=2)` |
-| 3.2 | X-Wing | `Fisherman(size=2)` |
-| 3.4 | Hidden Pair | `HiddenSet(size=2)` |
-| 3.6 | Naked Triplet | `NakedSet(size=3)` |
-| 3.8 | Swordfish | `Fisherman(size=3)` |
-| 4.0 | Hidden Triplet | `HiddenSet(size=3)` |
-| 4.2 | XY-Wing | `XYWing` |
-| 4.4 | XYZ-Wing | `XYWing(xyz=true)` |
+| Rating | Technique      | SE Java Class       |
+| ------ | -------------- | ------------------- |
+| 2.6    | Pointing       | `Locking`           |
+| 2.8    | Claiming       | `Locking`           |
+| 3.0    | Naked Pair     | `NakedSet(size=2)`  |
+| 3.2    | X-Wing         | `Fisherman(size=2)` |
+| 3.4    | Hidden Pair    | `HiddenSet(size=2)` |
+| 3.6    | Naked Triplet  | `NakedSet(size=3)`  |
+| 3.8    | Swordfish      | `Fisherman(size=3)` |
+| 4.0    | Hidden Triplet | `HiddenSet(size=3)` |
+| 4.2    | XY-Wing        | `XYWing`            |
+| 4.4    | XYZ-Wing       | `XYWing(xyz=true)`  |
 
 ### Phase 3 — Uniqueness (SE 4.5–6.0)
 
-| Rating | Technique | SE Java Class |
-|---|---|---|
-| 4.5–5.0 | Unique Rectangle types 1–4 | `UniqueLoop` |
-| 5.0 | Naked Quad | `NakedSet(size=4)` |
-| 5.2 | Jellyfish | `Fisherman(size=4)` |
-| 5.4 | Hidden Quad | `HiddenSet(size=4)` |
-| 5.6–6.0 | Bivalue Universal Grave | `BivalueUniversalGrave` |
+| Rating  | Technique                  | SE Java Class           |
+| ------- | -------------------------- | ----------------------- |
+| 4.5–5.0 | Unique Rectangle types 1–4 | `UniqueLoop`            |
+| 5.0     | Naked Quad                 | `NakedSet(size=4)`      |
+| 5.2     | Jellyfish                  | `Fisherman(size=4)`     |
+| 5.4     | Hidden Quad                | `HiddenSet(size=4)`     |
+| 5.6–6.0 | Bivalue Universal Grave    | `BivalueUniversalGrave` |
 
 ### Phase 4 — Chains (SE 6.2+, server-side only)
 
-| Rating | Technique | SE Java Class |
-|---|---|---|
-| 6.2 | Aligned Pair Exclusion | `AlignedPairExclusion` |
-| 6.5–7.5 | Bidirectional X/Y-Cycles | `Chaining` |
-| 6.6–7.6 | Forcing X-Chains | `Chaining` |
-| 7.0–8.0 | Forcing Chains | `Chaining` |
-| 7.5–8.5 | Nishio | `Chaining` |
-| 8.0–9.0 | Cell/Region Forcing Chains | `Chaining` |
-| 8.5–9.5 | Dynamic Forcing Chains | `Chaining` |
-| 9.0–10.0 | Dynamic Forcing Chains (+) | `Chaining` |
-| >9.5 | Nested Forcing Chains | `Chaining` |
+| Rating   | Technique                  | SE Java Class          |
+| -------- | -------------------------- | ---------------------- |
+| 6.2      | Aligned Pair Exclusion     | `AlignedPairExclusion` |
+| 6.5–7.5  | Bidirectional X/Y-Cycles   | `Chaining`             |
+| 6.6–7.6  | Forcing X-Chains           | `Chaining`             |
+| 7.0–8.0  | Forcing Chains             | `Chaining`             |
+| 7.5–8.5  | Nishio                     | `Chaining`             |
+| 8.0–9.0  | Cell/Region Forcing Chains | `Chaining`             |
+| 8.5–9.5  | Dynamic Forcing Chains     | `Chaining`             |
+| 9.0–10.0 | Dynamic Forcing Chains (+) | `Chaining`             |
+| >9.5     | Nested Forcing Chains      | `Chaining`             |
 
 ---
 
@@ -476,12 +504,12 @@ interface Grid {
 }
 
 interface Cell {
-  readonly index: number;          // 0–80, row-major
-  readonly row: number;            // 0–8
-  readonly col: number;            // 0–8
-  readonly box: number;            // 0–8
+  readonly index: number; // 0–80, row-major
+  readonly row: number; // 0–8
+  readonly col: number; // 0–8
+  readonly box: number; // 0–8
   readonly value: number | null;
-  readonly candidates: number;     // 9-bit bitmask
+  readonly candidates: number; // 9-bit bitmask
   readonly isGiven: boolean;
   readonly candidateList: readonly number[];
   readonly candidateCount: number;
@@ -522,10 +550,12 @@ interface HintProducer {
 ## Phase Delivery Plan
 
 ### Phase 0 — Scaffolding
+
 **Goal:** Repo passes CI with zero implementation. All tooling correct.
 Claude Code generates everything listed below.
 
 **Monorepo foundation:**
+
 - [ ] `pnpm-workspace.yaml`
 - [ ] Root `package.json` (scripts only, no runtime deps)
 - [ ] `turbo.json` (pipeline as specified above)
@@ -539,6 +569,7 @@ Claude Code generates everything listed below.
 
 **Package skeletons** (each needs: `package.json`, `tsconfig.json`,
 `tsup.config.ts`, `vitest.config.ts`, `src/index.ts` stub, `tests/` dir):
+
 - [ ] `packages/core`
 - [ ] `packages/solver`
 - [ ] `packages/generator`
@@ -546,6 +577,7 @@ Claude Code generates everything listed below.
 - [ ] `packages/react-native`
 
 **GitHub Actions:**
+
 - [ ] `.github/workflows/ci.yml` (parallel pipeline as specified above)
 - [ ] `.github/workflows/release.yml` (Changesets + npm provenance + docs deploy)
 - [ ] `.github/PULL_REQUEST_TEMPLATE.md`
@@ -553,6 +585,7 @@ Claude Code generates everything listed below.
 - [ ] `.github/ISSUE_TEMPLATE/technique_request.md`
 
 **Documentation:**
+
 - [ ] `docs/` VitePress skeleton
 - [ ] `docs/adr/README.md` (ADR index)
 - [ ] `docs/adr/_template.md`
@@ -562,6 +595,7 @@ Claude Code generates everything listed below.
 - [ ] `README.md`
 
 **Benchmark harness:**
+
 - [ ] `benchmarks/runner.ts`
 - [ ] `benchmarks/corpus/` with seed puzzles + `README.md`
 
@@ -572,6 +606,7 @@ Benchmark reports 0% agreement (expected — no techniques yet).
 ---
 
 ### Phase 1 — Direct Techniques (SE 1.0–2.5)
+
 **Goal:** Solve easy/medium puzzles. ≥ 99% SE agreement on SE ≤ 2.5 puzzles.
 
 - [ ] Grid, Cell, Region models (immutable, fully typed)
@@ -592,6 +627,7 @@ Benchmark reports 0% agreement (expected — no techniques yet).
 ---
 
 ### Phase 2 — Candidate Techniques (SE 2.6–4.4)
+
 **Goal:** Solve hard/fiendish puzzles. ≥ 99% SE agreement on SE ≤ 4.4 puzzles.
 
 - [ ] `Pointing` (2.6) + `Claiming` (2.8)
@@ -607,6 +643,7 @@ Benchmark reports 0% agreement (expected — no techniques yet).
 ---
 
 ### Phase 3 — Uniqueness (SE 4.5–6.0)
+
 - [ ] `UniqueRectangle` types 1–4
 - [ ] `UniqueLoop` variants
 - [ ] `BivalueUniversalGrave`
@@ -615,7 +652,9 @@ Benchmark reports 0% agreement (expected — no techniques yet).
 ---
 
 ### Phase 4 — Chains (SE 6.2+, server-side)
+
 One technique at a time:
+
 - [ ] `AlignedPairExclusion` (6.2) — simplest entry point
 - [ ] `Chaining` infrastructure (Potential, link graph, weak/strong links)
 - [ ] Bidirectional X/Y-Cycles → Forcing Chains → Nishio → Dynamic → Nested
@@ -623,6 +662,7 @@ One technique at a time:
 ---
 
 ### Phase 5 — Generator + Corpus
+
 - [ ] Production generator with difficulty targeting
 - [ ] Scenario tagging + 10k+ labeled puzzle corpus
 - [ ] Digit permutation augmentation for ML training
@@ -631,6 +671,7 @@ One technique at a time:
 ---
 
 ### Phase 6 — ML Package
+
 - [ ] Board feature extraction (729-bit candidate tensor + derived features)
 - [ ] PyTorch training pipeline → ONNX export
 - [ ] `@tsudoku/ml` with onnxruntime-react-native inference
@@ -639,6 +680,7 @@ One technique at a time:
 ---
 
 ### Phase 7 — React Native App (parallel with Phase 2+)
+
 - [ ] Board + candidate rendering
 - [ ] Hint system UI with token economy
 - [ ] Claude API integration with validation layer

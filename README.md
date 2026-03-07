@@ -6,22 +6,28 @@
 [![npm version](https://badge.fury.io/js/%40tsudoku%2Fcore.svg)](https://badge.fury.io/js/%40tsudoku%2Fcore)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TSudoku is an open-source TypeScript port of [SudokuExplainer](https://github.com/1to9only/SudokuExplainer) — the gold-standard Sudoku technique classifier used by the competitive Sudoku community for 20 years. It runs natively in Node.js, browsers, and React Native (via Hermes), with zero JVM dependency.
+TSudoku is an open-source TypeScript port of [SudokuExplainer](https://github.com/1to9only/SudokuExplainer), a Java-based Sudoku technique classifier used by the competitive Sudoku community. It runs natively in Node.js, browsers, and React Native (via Hermes), with no JVM dependency.
 
 **Website:** [tsudoku.dev](https://tsudoku.dev)
 
 ---
 
+## What is Sudoku?
+
+Sudoku is a logic puzzle played on a 9×9 grid divided into nine 3×3 boxes. The goal is to fill every cell with a digit 1–9 such that each digit appears exactly once in every row, column, and box. No arithmetic is required — the digits are purely symbolic. For a thorough introduction, see [SudokuWiki](https://www.sudokuwiki.org).
+
+---
+
 ## Why TSudoku?
 
-The JavaScript/TypeScript ecosystem has plenty of backtracking Sudoku solvers. What it has never had is a solver that reasons the way humans do — identifying named techniques, explaining *why* a digit can be placed or a candidate eliminated, and rating puzzle difficulty by the hardest technique required.
-
-TSudoku fills that gap.
+Most Sudoku solvers use backtracking — they find a solution but cannot explain _how_. TSudoku identifies the named human technique that applies at each step, explains why it works, and rates puzzle difficulty by the hardest technique required. This mirrors how competitive solvers and publishers like [Nikoli](https://www.nikoli.co.jp) think about Sudoku difficulty.
 
 ```typescript
 import { createGrid, Solver } from '@tsudoku/core';
 
-const grid = createGrid('530070000600195000098000060800060003400803001700020006060000280000419005000080079');
+const grid = createGrid(
+  '530070000600195000098000060800060003400803001700020006060000280000419005000080079',
+);
 const solver = new Solver();
 
 const hint = solver.getNextHint(grid);
@@ -41,31 +47,35 @@ const hint = solver.getNextHint(grid);
 
 This is a pnpm monorepo. Packages are published under the `@tsudoku` scope.
 
-| Package | Description |
-|---|---|
-| [`@tsudoku/core`](./packages/core) | Board model, candidate engine, technique detectors, solver orchestrator |
-| [`@tsudoku/solver`](./packages/solver) | Human-style solver with full solve path recording |
-| [`@tsudoku/generator`](./packages/generator) | Puzzle generation and SE-compatible difficulty rating |
-| [`@tsudoku/cli`](./packages/cli) | Command-line interface for solving, hinting, generating, benchmarking |
-| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks |
-| [`@tsudoku/ml`](./packages/ml) | ONNX model training pipeline and on-device inference *(roadmap)* |
+| Package                                            | Description                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`@tsudoku/core`](./packages/core)                 | Board model, candidate engine, technique detectors, solver orchestrator |
+| [`@tsudoku/solver`](./packages/solver)             | Human-style solver with full solve path recording                       |
+| [`@tsudoku/generator`](./packages/generator)       | Puzzle generation and SE-compatible difficulty rating                   |
+| [`@tsudoku/cli`](./packages/cli)                   | Command-line interface for solving, hinting, generating, benchmarking   |
+| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks                                       |
+| [`@tsudoku/ml`](./packages/ml)                     | ONNX model training pipeline and on-device inference _(roadmap)_        |
 
 ---
 
 ## Technique Coverage
 
-TSudoku implements techniques in phases matching SE's difficulty rating scale:
+Techniques are implemented in phases matching SudokuExplainer's difficulty rating scale. For technique descriptions and visual examples, see [SudokuWiki](https://www.sudokuwiki.org).
 
 ### Phase 1 — Direct (SE 1.0–2.5) ✅
-Techniques solvable without writing candidates: Last Value, Hidden Singles, Direct Pointing/Claiming, Direct Hidden Pairs/Triplets, Naked Singles.
+
+Solvable without writing candidates: Last Value, Hidden Singles, Direct Pointing/Claiming, Direct Hidden Pairs/Triplets, Naked Singles.
 
 ### Phase 2 — Candidate-based (SE 2.6–4.4) ✅
+
 Pointing & Claiming (Locked Candidates), Naked/Hidden Sets (pairs through quads), X-Wing, Swordfish, Jellyfish, XY-Wing, XYZ-Wing.
 
 ### Phase 3 — Uniqueness (SE 4.5–6.0) 🚧
+
 Unique Rectangles (types 1–4), Unique Loops, Bivalue Universal Graves.
 
 ### Phase 4 — Chains (SE 6.2+) 🗺️
+
 Aligned Pair Exclusion, Bidirectional X/Y-Cycles, Forcing Chains, Nishio, Dynamic and Nested variants.
 
 ---
@@ -82,10 +92,10 @@ tsudoku solve "53007000060019500009800006080006000340080300170002000606000028000
 tsudoku hint --puzzle "..." --type explanation
 
 # Generate a puzzle at a target difficulty
-tsudoku generate --difficulty 3.8 --technique x-wing
+tsudoku generate --difficulty 3.8
 
 # Rate a puzzle (SE-compatible output)
-tsudoku rate --puzzle "..." 
+tsudoku rate --puzzle "..."
 # → ED=3.8/2.6/1.2
 
 # Benchmark against SE reference corpus
@@ -94,33 +104,19 @@ tsudoku benchmark --corpus se-reference.jsonl
 
 ---
 
-## SE Parity
-
-TSudoku measures agreement with SudokuExplainer's ratings on a reference corpus of rated puzzles. Current benchmark results:
-
-```
-Naked Singles:      100% agreement
-Hidden Singles:     100% agreement
-Naked Pairs:         99.8% agreement
-X-Wing:              99.1% agreement
-Overall SE rating:   97.3% correlation (r=0.97)
-```
-
-Reproducible with: `pnpm benchmark`
-
----
-
 ## Contributing
 
-TSudoku is intentionally designed to be contribution-friendly. Each technique is a self-contained file implementing a single interface. Adding a new technique means adding one file, one test file, and registering it in the solver's producer list.
+Each technique is a self-contained file implementing a single interface. Adding a new technique means adding one file, one test file, and registering it in the solver's producer list.
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide, including how to use SudokuExplainer's Java source as a reference for new technique ports.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [PORTING.md](./PORTING.md) for the full guide.
 
 ---
 
 ## Inspiration & Attribution
 
-TSudoku is a TypeScript port of Nicolas Juillerat's [SudokuExplainer](http://diuf.unifr.ch/pai/people/juillera/Sudoku/Sudoku.html) (v1.2.1), with reference to Glenn Fowler's serate modifications and the [1to9only fork](https://github.com/1to9only/SudokuExplainer). The SE difficulty rating scale and technique hierarchy are reproduced with attribution.
+TSudoku is a TypeScript port of **Nicolas Juillerat's SudokuExplainer** (v1.2.1, 2006). Juillerat's original website is no longer online; the canonical source for the Java code is the [1to9only/SudokuExplainer](https://github.com/1to9only/SudokuExplainer) fork on GitHub, which preserves Juillerat's original implementation alongside **Glenn Fowler's** (`gsf`) `serate` command-line rating modifications.
+
+The SE difficulty rating scale, technique hierarchy, and technique names used throughout TSudoku are derived from Juillerat's work and reproduced with attribution.
 
 ---
 

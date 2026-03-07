@@ -1,113 +1,65 @@
 # Sudoku Facts & Trivia
-# Schema: id, category, claim, detail, source, source_url, verified, tags
+# Fun facts for display in the app or docs. Not authoritative — always link
+# to primary sources for anything important.
+#
+# Schema: id, category, claim, source, source_url, tags
+# verified: true = sourced and spot-checked; false = plausible but unconfirmed
 # Categories: combinatorics, puzzle-theory, history, variants, records, culture
 
 facts:
-
-  # ── Combinatorics ────────────────────────────────────────────────────────────
+  # ── Combinatorics ─────────────────────────────────────────────────────────────
 
   - id: grid-count-total
     category: combinatorics
     claim: >
-      There are exactly 6,670,903,752,021,072,936,960 (≈ 6.67 × 10²¹) possible
-      completed 9×9 Sudoku grids.
-    detail: >
-      Calculated in 2005 by Bertram Felgenhauer and Frazer Jarvis using a
-      combination of combinatorial analysis and computer enumeration. Published
-      in 2006.
-    source: "Felgenhauer & Jarvis (2006), Mathematics of Sudoku I"
-    source_url: "http://www.afjarvis.org.uk/sudoku/sudoku.pdf"
+      There are exactly 6,670,903,752,021,072,936,960 possible completed
+      9×9 Sudoku grids — roughly 6.67 × 10²¹.
+    source: 'Felgenhauer & Jarvis (2006), Mathematics of Sudoku I'
+    source_url: 'http://www.afjarvis.org.uk/sudoku/sudoku.pdf'
     verified: true
-    tags: [count, combinatorics, felgenhauer, jarvis]
+    tags: [combinatorics, count]
 
   - id: grid-count-essentially-different
     category: combinatorics
     claim: >
-      There are 5,472,730,538 essentially different completed 9×9 Sudoku grids
-      when accounting for symmetry.
-    detail: >
-      Two grids are considered "essentially the same" if one can be transformed
-      into the other by rotating, reflecting, relabeling digits, or permuting
-      rows/columns within bands. This canonical count was established by
-      Russell and Jarvis in 2006.
-    source: "Russell & Jarvis (2006), Mathematics of Sudoku II"
-    source_url: "http://www.afjarvis.org.uk/sudoku/sudoku2.pdf"
+      When rotations, reflections, and digit relabelings are accounted for,
+      there are only 5,472,730,538 essentially different completed grids.
+    source: 'Russell & Jarvis (2006), Mathematics of Sudoku II'
+    source_url: 'http://www.afjarvis.org.uk/sudoku/sudoku2.pdf'
     verified: true
-    tags: [count, combinatorics, symmetry, canonical]
-
-  - id: valid-puzzles-count
-    category: combinatorics
-    claim: >
-      There are approximately 3.1 × 10³⁷ distinct valid Sudoku puzzles
-      (with at least one solution).
-    detail: >
-      This figure counts puzzles as distinct if they differ in any cell value,
-      including given placement. The precise count of minimal puzzles (where
-      removing any clue creates ambiguity) is not fully known.
-    source: "Jarvis & Russell (2006)"
-    source_url: "http://www.afjarvis.org.uk/sudoku/"
-    verified: true
-    tags: [count, combinatorics, puzzles]
+    tags: [combinatorics, symmetry]
 
   # ── Puzzle Theory ─────────────────────────────────────────────────────────────
 
   - id: minimum-clues
     category: puzzle-theory
     claim: >
-      A valid 9×9 Sudoku puzzle with a unique solution requires at least 17 clues.
-    detail: >
-      Proven in 2012 by Gary McGuire, Bastian Tugemann, and Gilles Civario after
-      an exhaustive computer search that took roughly a year of CPU time. They
-      verified that no 16-clue puzzle with a unique solution exists, confirming
-      17 as the minimum.
-    source: "McGuire, Tugemann & Civario (2012), There is no 16-Clue Sudoku"
-    source_url: "https://arxiv.org/abs/1201.0749"
+      A valid 9×9 Sudoku with a unique solution requires at least 17 given
+      clues. No 16-clue puzzle with a unique solution exists.
+    source: 'McGuire, Tugemann & Civario (2012), There is no 16-Clue Sudoku'
+    source_url: 'https://arxiv.org/abs/1201.0749'
     verified: true
-    tags: [clues, minimum, proof, mcguire]
+    tags: [clues, minimum, proof]
 
-  - id: maximum-clues-non-redundant
+  - id: uniqueness-assumption
     category: puzzle-theory
     claim: >
-      The maximum number of clues a proper Sudoku puzzle can have while still
-      requiring deduction is 77.
-    detail: >
-      A puzzle with 78 or more filled cells is trivially solved by elimination
-      alone. Constructing a non-redundant 77-clue puzzle (where every clue is
-      necessary for uniqueness) is theoretically possible but extremely rare.
-    source: "General combinatorial consensus"
+      Several solving techniques — including Unique Rectangle and BUG —
+      only work if you assume the puzzle has exactly one solution.
+    source: 'General Sudoku solving literature; SudokuWiki'
+    source_url: 'https://www.sudokuwiki.org'
+    verified: true
+    tags: [uniqueness, techniques, solving]
+
+  - id: not-about-math
+    category: puzzle-theory
+    claim: >
+      Sudoku requires no arithmetic. The digits 1–9 are purely symbolic and
+      could be replaced with any nine distinct symbols without changing the puzzle.
+    source: 'General Sudoku convention'
     source_url: null
     verified: true
-    tags: [clues, maximum, puzzle-theory]
-
-  - id: solution-uniqueness-requirement
-    category: puzzle-theory
-    claim: >
-      By convention, a "proper" Sudoku puzzle must have exactly one solution.
-    detail: >
-      Puzzles with zero or multiple solutions are considered malformed by the
-      competitive Sudoku community and most publishers. Many solving techniques
-      (particularly Unique Rectangle and BUG) explicitly exploit the assumption
-      of a unique solution.
-    source: "General Sudoku community convention"
-    source_url: null
-    verified: true
-    tags: [uniqueness, convention, solving]
-
-  - id: hardest-puzzles-technique
-    category: puzzle-theory
-    claim: >
-      The hardest published Sudoku puzzles require "nested forcing chains" —
-      a technique so complex it is effectively equivalent to trial-and-error
-      for human solvers.
-    detail: >
-      SudokuExplainer rates these puzzles above 9.5 on its difficulty scale.
-      No human solver is known to solve them reliably using pure logic without
-      some form of bifurcation. The puzzle "Golden Nugget" has an SE rating
-      of 11.9 and is considered one of the hardest ever published.
-    source: "SudokuExplainer rating system; enjoysudoku.com forum"
-    source_url: "http://forum.enjoysudoku.com"
-    verified: true
-    tags: [difficulty, chains, golden-nugget, se-rating]
+    tags: [symbols, logic, math]
 
   # ── History ───────────────────────────────────────────────────────────────────
 
@@ -115,180 +67,102 @@ facts:
     category: history
     claim: >
       The modern Sudoku puzzle was invented by Howard Garns, an American
-      architect, and first published in 1979 under the name "Number Place" by
-      Dell Magazines.
-    detail: >
-      Garns never saw his puzzle become famous — he died in 1989, six years
-      before the Sudoku craze swept the world. His authorship was confirmed
-      posthumously by Will Shortz, crossword editor of The New York Times.
-    source: "Will Shortz, NYT; Various puzzle history sources"
-    source_url: "https://www.nytimes.com/2007/03/11/crosswords/11squarenew.html"
+      architect, and first published in 1979 as "Number Place" by Dell Magazines.
+    source: 'Will Shortz, The New York Times'
+    source_url: 'https://www.nytimes.com/2007/03/11/crosswords/11squarenew.html'
     verified: true
     tags: [history, origin, garns, dell]
+
+  - id: garns-posthumous
+    category: history
+    claim: >
+      Howard Garns died in 1989 — more than fifteen years before the global
+      Sudoku craze of 2004–2005. He never saw his puzzle become famous.
+    source: 'Will Shortz, The New York Times'
+    source_url: 'https://www.nytimes.com/2007/03/11/crosswords/11squarenew.html'
+    verified: true
+    tags: [history, garns]
 
   - id: japan-popularization
     category: history
     claim: >
-      The puzzle was popularized in Japan by Nikoli in 1984 under the name
-      数独 (Sūdoku), meaning "digits must be single."
-    detail: >
-      Nikoli editor Kaji Maki introduced the puzzle and gave it its Japanese
-      name, a contraction of 数字は独身に限る (Sūji wa dokushin ni kagiru).
-      Nikoli also added the constraint that given clues must be limited to 30
-      and must be rotationally symmetric, conventions still followed today.
-    source: "Nikoli Co., Ltd.; puzzle history records"
-    source_url: "https://www.nikoli.co.jp"
+      Nikoli introduced the puzzle to Japan in 1984 under the name 数独
+      (Sūdoku), a contraction of 数字は独身に限る — "digits must be single."
+    source: 'Nikoli Co., Ltd.'
+    source_url: 'https://www.nikoli.co.jp'
     verified: true
     tags: [history, japan, nikoli, name]
 
   - id: global-craze-2004
     category: history
     claim: >
-      The global Sudoku craze began in 2004 when retired judge Wayne Gould
-      convinced The Times of London to publish the puzzle.
-    detail: >
-      Gould had spent six years writing a computer program to generate Sudoku
-      puzzles after encountering one in a Tokyo bookshop in 1997. The Times
-      began publishing them in November 2004; within months Sudoku appeared
-      in newspapers worldwide.
-    source: "The Times (UK); various press sources"
+      The global Sudoku craze began in 2004 when Wayne Gould convinced
+      The Times of London to publish the puzzle.
+    source: 'The Times (UK); various press sources'
     source_url: null
     verified: true
-    tags: [history, gould, times, craze, 2004]
+    tags: [history, craze, 2004, gould]
 
   - id: latin-square-connection
     category: history
     claim: >
-      Sudoku is a constrained form of a Latin square, a concept studied by
+      Sudoku is a constrained form of a Latin square — a concept studied by
       Leonhard Euler in the 18th century.
-    detail: >
-      A Latin square is an n×n grid filled with n symbols such that each
-      symbol appears exactly once in each row and column. Sudoku adds the
-      box constraint to a 9×9 Latin square. Euler studied 6×6 Latin squares
-      in 1782 in his work on "orthogonal Latin squares."
-    source: "Euler (1782); combinatorics literature"
+    source: 'General combinatorics literature'
     source_url: null
     verified: true
-    tags: [history, euler, latin-square, math]
+    tags: [history, math, latin-square, euler]
 
   # ── Records ───────────────────────────────────────────────────────────────────
 
-  - id: world-record-solve-time
+  - id: world-sudoku-championship
     category: records
     claim: >
-      The fastest competitive Sudoku solve times are under 1 minute for
-      expert-level puzzles.
-    detail: >
-      Top competitive solvers such as Thomas Snyder (USA) and Jan Mrozowski
-      (Poland) have solved hard puzzles in under 2 minutes in championship
-      conditions. Snyder won the first World Sudoku Championship in 2006.
-    source: "World Sudoku Championship records"
-    source_url: "https://www.worldpuzzle.org"
+      The World Sudoku Championship has been held annually since 2006,
+      organized by the World Puzzle Federation.
+    source: 'World Puzzle Federation'
+    source_url: 'https://www.worldpuzzle.org'
     verified: true
-    tags: [records, competition, speed, snyder]
+    tags: [records, competition, championship]
 
-  - id: largest-sudoku
+  - id: competitive-solve-times
     category: records
     claim: >
-      The largest standard-variant Sudoku puzzle publicly documented is
-      a 100×100 grid.
-    detail: >
-      Various oversized Sudoku variants have been constructed, but they
-      follow different rules than standard 9×9. The 100×100 variant uses
-      10×10 boxes and digits 1–100, making it effectively unsolvable by hand.
-    source: "Various puzzle constructor records"
-    source_url: null
-    verified: false
-    tags: [records, variants, large]
+      Top competitive solvers can complete championship-level puzzles in
+      1–2 minutes.
+    source: 'World Sudoku Championship records'
+    source_url: 'https://www.worldpuzzle.org'
+    verified: true
+    tags: [records, competition, speed]
 
   # ── Variants ──────────────────────────────────────────────────────────────────
 
-  - id: variant-killer-sudoku
+  - id: variant-killer
     category: variants
     claim: >
-      Killer Sudoku replaces given digits with "cages" — outlined groups of
-      cells whose digits must sum to a given total.
-    detail: >
-      No digit repeats within a cage. This variant originated in Japan as
-      "Samunamupure" and was popularized in the West by The Times. It is
-      generally considered harder than standard Sudoku because the solver
-      must use arithmetic in addition to logic.
-    source: "Nikoli; The Times (UK)"
+      Killer Sudoku replaces given digits with "cages" — groups of cells
+      whose digits must sum to a given total, with no repeats within a cage.
+    source: 'Nikoli; The Times (UK)'
     source_url: null
     verified: true
-    tags: [variants, killer, cages, arithmetic]
+    tags: [variants, killer, cages]
 
   - id: variant-diagonals
     category: variants
     claim: >
-      Diagonal Sudoku (also called "X Sudoku") adds the constraint that both
-      main diagonals must also contain digits 1–9 without repetition.
-    detail: >
-      This reduces the number of valid completed grids significantly compared
-      to standard Sudoku. The two diagonals form an "X" shape across the board,
-      which is why the variant is sometimes called X Sudoku.
-    source: "General puzzle literature"
+      Diagonal Sudoku adds the constraint that both main diagonals must also
+      contain each digit 1–9 exactly once.
+    source: 'General puzzle literature'
     source_url: null
     verified: true
-    tags: [variants, diagonals, x-sudoku]
+    tags: [variants, diagonals]
 
   - id: variant-16x16
     category: variants
     claim: >
-      The 16×16 Sudoku variant uses a 4×4 arrangement of 4×4 boxes and
-      typically uses digits 1–9 plus letters A–G (or hex digits 0–F).
-    detail: >
-      The number of valid completed 16×16 grids is astronomically larger than
-      9×9 and has not been precisely computed. Solving requires the same logical
-      techniques as 9×9 but applied across more cells, making it substantially
-      more time-consuming.
-    source: "General puzzle literature"
+      The 16×16 variant uses a 4×4 arrangement of 4×4 boxes, typically
+      with digits 1–9 plus letters A–G.
+    source: 'General puzzle literature'
     source_url: null
     verified: true
-    tags: [variants, 16x16, hexadoku]
-
-  # ── Culture ───────────────────────────────────────────────────────────────────
-
-  - id: not-about-math
-    category: culture
-    claim: >
-      Sudoku requires no arithmetic — digits 1–9 are used purely as symbols
-      and could be replaced with any nine distinct symbols without changing
-      the puzzle.
-    detail: >
-      The puzzle is entirely about logic and constraint satisfaction. Some
-      publications use shapes, letters, or colors instead of digits to
-      emphasize this point. Any set of nine distinct symbols works identically.
-    source: "General Sudoku convention"
-    source_url: null
-    verified: true
-    tags: [culture, math, symbols, logic]
-
-  - id: sudoku-world-championship
-    category: culture
-    claim: >
-      The World Sudoku Championship has been held annually since 2006, organized
-      by the World Puzzle Federation.
-    detail: >
-      The first championship was held in Lucca, Italy in 2006 and won by
-      Thomas Snyder of the USA. The event features both individual and team
-      competitions across standard and variant Sudoku formats.
-    source: "World Puzzle Federation"
-    source_url: "https://www.worldpuzzle.org"
-    verified: true
-    tags: [culture, competition, championship, wpf]
-
-  - id: sudoku-newspaper-peak
-    category: culture
-    claim: >
-      At the peak of the Sudoku craze (2005–2006), some UK newspapers published
-      up to five Sudoku puzzles per day.
-    detail: >
-      The puzzle spread so rapidly through UK print media that editors competed
-      on volume and difficulty. The Times, Daily Telegraph, Guardian, and
-      tabloids all published daily Sudoku within months of each other. The
-      trend quickly spread to North American, Australian, and European papers.
-    source: "UK press history; various sources"
-    source_url: null
-    verified: true
-    tags: [culture, newspapers, craze, uk]
+    tags: [variants, 16x16]

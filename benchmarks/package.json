@@ -1,0 +1,16 @@
+{
+  "name": "benchmarks",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "benchmark": "tsx runner.ts"
+  },
+  "dependencies": {
+    "@tsudoku/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0"
+  }
+}
