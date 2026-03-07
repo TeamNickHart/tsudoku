@@ -19,8 +19,9 @@ The JS/TS ecosystem has plenty of backtracking solvers. What it lacks is a solve
 | 2     | Candidate techniques (SE 2.6-4.4)       | Not started  |
 | 3     | Uniqueness techniques (SE 4.5-6.0)      | Not started  |
 | 4     | Chain techniques (SE 6.2+, server-side) | Not started  |
-| 5     | Generator + corpus pipeline             | Not started  |
-| 6     | ML package (ONNX inference)             | Not started  |
+| 5     | SE oracle integration (Java CLI)        | Not started  |
+| 6     | Generator + corpus pipeline             | Not started  |
+| 7     | ML package (ONNX inference)             | Not started  |
 
 ## Packages
 

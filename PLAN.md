@@ -598,6 +598,10 @@ Claude Code generates everything listed below.
 
 - [ ] `benchmarks/runner.ts`
 - [ ] `benchmarks/corpus/` with seed puzzles + `README.md`
+- [ ] `tools/se-oracle/` — SudokuExplainer Java CLI integration
+- [ ] SE jar download/setup script
+- [ ] Wrapper to run SE `serate` and compare output against TSudoku
+- [ ] CI job to validate TSudoku ratings against SE oracle
 
 **Deliverable:** `pnpm install && pnpm turbo build` succeeds. `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm benchmark` all pass on empty stubs.

@@ -35,6 +35,22 @@ Node.js, browsers, and React Native (Hermes). Zero JVM dependency.
 **No solving techniques are implemented yet.** The monorepo scaffold, CI pipeline,
 docs site, and benchmark harness are complete.
 
+### SE Oracle Integration
+
+The benchmark harness will incorporate the actual SudokuExplainer Java CLI
+(`serate`) as a ground-truth oracle. This lets us validate TSudoku's technique
+detection and difficulty ratings against the original SE on every puzzle,
+providing authoritative pass/fail for CI.
+
+```bash
+# SE CLI usage (requires Java)
+java -cp SudokuExplainer.jar diuf.sudoku.test.serate \
+  --input=puzzles.txt --output=rated.txt --format="%g ED=%r/%p/%d"
+```
+
+The `tools/` directory will contain wrapper scripts to run SE and compare output.
+A `tools/se-oracle/` directory will hold the SE jar and integration harness.
+
 ---
 
 ## Documentation Convention: Planned vs Implemented
