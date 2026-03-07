@@ -22,6 +22,39 @@ Node.js, browsers, and React Native (Hermes). Zero JVM dependency.
 
 ---
 
+## Current Phase Status
+
+- [x] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton) ✅
+- [ ] **Phase 1** — Direct techniques (SE 1.0–2.5)
+- [ ] **Phase 2** — Candidate techniques (SE 2.6–4.4)
+- [ ] **Phase 3** — Uniqueness techniques (SE 4.5–6.0)
+- [ ] **Phase 4** — Chain techniques (SE 6.2+, server-side)
+- [ ] **Phase 5** — Generator + corpus pipeline
+- [ ] **Phase 6** — ML package (ONNX inference)
+
+**No solving techniques are implemented yet.** The monorepo scaffold, CI pipeline,
+docs site, and benchmark harness are complete.
+
+---
+
+## Documentation Convention: Planned vs Implemented
+
+Roadmaps, plans, and architectural vision are welcome everywhere — just don't
+present unimplemented features as if they already work.
+
+- **Tense:** Future tense for future things ("will detect"), present tense for
+  what works today ("builds all packages").
+- **VitePress pages:** Use `::: warning NOT YET IMPLEMENTED` or
+  `::: warning PROJECT STATUS` callout boxes on pages showing APIs or features
+  that don't exist yet.
+- **Tables:** Add a `Status` column (`Complete`, `Scaffold`, `Planned`, `Not started`).
+- **Code examples:** If the API doesn't exist yet, label it:
+  "The **planned** usage will look like:" — don't present it as working code.
+- **CLAUDE.md:** Design reference sections (planned types, interfaces, architecture)
+  are fine — label them as design targets so future sessions know what's real.
+
+---
+
 ## Monorepo Structure
 
 ```
@@ -45,19 +78,18 @@ tsudoku/                          ← pnpm workspace root
 │   ├── cli/                      ← @tsudoku/cli — Commander-based CLI tool
 │   └── react-native/             ← @tsudoku/react-native — RN components + hooks
 ├── apps/
-│   └── showcase/                 ← React Native demo app (Expo)
+│   └── showcase/                 ← React Native demo app (Expo) [PLANNED]
 ├── docs/                         ← VitePress site → tsudoku.dev
 │   ├── index.md
 │   ├── guide/
-│   ├── api/                      ← auto-generated from TypeDoc
-│   └── techniques/               ← one page per technique with visual examples
+│   ├── api/                      ← auto-generated from TypeDoc [PLANNED]
+│   └── techniques/               ← one page per technique [PLANNED]
 ├── benchmarks/                   ← SE parity suite
 │   ├── runner.ts
 │   └── corpus/                   ← .jsonl files with known SE ratings
 ├── data/
 │   └── puzzles/                  ← seed corpus
-├── tools/                        ← internal scripts (corpus gen, SE runner wrapper)
-├── turbo.json                    ← Turborepo pipeline config
+├── turbo.json                    ← Turborepo task config
 ├── pnpm-workspace.yaml
 ├── package.json                  ← root (scripts only, no deps)
 ├── tsconfig.base.json            ← shared TS config
@@ -84,9 +116,8 @@ tsudoku/                          ← pnpm workspace root
 | Husky + lint-staged | Pre-commit hooks              | `.husky/`                      |
 | GitHub Actions      | CI/CD                         | `.github/workflows/`           |
 | VitePress           | Docs site                     | `docs/.vitepress/config.ts`    |
-| TypeDoc             | API doc generation            | `typedoc.json`                 |
 | Changesets          | Versioning + changelog        | `.changeset/`                  |
-| Commander           | CLI framework                 | in `packages/cli`              |
+| Commander           | CLI framework (planned)       | in `packages/cli`              |
 
 ---
 
@@ -129,7 +160,7 @@ tsudoku/                          ← pnpm workspace root
 ```json
 // turbo.json
 {
-  "pipeline": {
+  "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
@@ -164,7 +195,11 @@ pnpm changeset          # create a new changeset for release
 
 ---
 
-## Core Data Model
+## Design Targets (not yet implemented)
+
+The sections below describe the **planned** architecture for the core engine.
+These are design references for Phase 1+ implementation — none of this code
+exists yet.
 
 ### The Candidate Bitmask (most important convention)
 
@@ -175,7 +210,7 @@ Candidates are stored as a **9-bit integer**. Bit position `d-1` represents digi
 // bit 1 (2)   → digit 2 is a candidate
 // bit 8 (256) → digit 9 is a candidate
 
-// Utilities (in packages/core/src/candidates/bitmask.ts)
+// Utilities (planned for packages/core/src/candidates/bitmask.ts)
 const candidateMask = (digit: number): number => 1 << (digit - 1);
 const hasCandidate = (candidates: number, digit: number): boolean =>
   (candidates & candidateMask(digit)) !== 0;
@@ -235,11 +270,7 @@ interface Region {
 }
 ```
 
----
-
-## Hint System
-
-### The Two Hint Types (mirrors SE's DirectHint / IndirectHint)
+### Hint System
 
 ```typescript
 type Hint = DirectHint | EliminationHint;
@@ -248,10 +279,10 @@ type Hint = DirectHint | EliminationHint;
 interface DirectHint {
   readonly type: 'direct';
   readonly technique: Technique;
-  readonly difficulty: number; // SE difficulty rating
-  readonly cell: number; // cell index 0–80
-  readonly digit: number; // digit to place (1–9)
-  readonly explanation: string; // human-readable why
+  readonly difficulty: number;
+  readonly cell: number;
+  readonly digit: number;
+  readonly explanation: string;
   readonly involvedCells: readonly number[];
   readonly involvedCandidates: ReadonlyMap<number, readonly number[]>;
 }
@@ -266,28 +297,15 @@ interface EliminationHint {
   readonly involvedCells: readonly number[];
   readonly involvedCandidates: ReadonlyMap<number, readonly number[]>;
 }
-```
 
-### Applying Hints (always immutable)
-
-```typescript
-// Every hint application returns a NEW grid — never mutate
+// Immutable hint application
 function applyHint(grid: Grid, hint: Hint): Grid;
-
-// Recompute all candidates from scratch after a digit placement
-// (simpler and safer than incremental updates)
 function recomputeCandidates(grid: Grid): Grid;
 ```
 
----
-
-## HintProducer Interface (the heart of the architecture)
-
-Every technique is a `HintProducer`. The Solver runs them in difficulty order.
+### HintProducer Interface
 
 ```typescript
-// Returning 'stop' from the accumulator short-circuits the producer
-// (equivalent to SE's SingleHintAccumulator throwing InterruptedException)
 type HintAccumulator = (hint: Hint) => void | 'stop';
 
 interface HintProducer {
@@ -306,49 +324,6 @@ interface HintProducer {
 5. Add to `Technique` union type in `packages/core/src/types/Technique.ts`
 6. Add SE difficulty rating to `TECHNIQUE_DIFFICULTY` map
 7. Run benchmark to verify SE agreement
-
----
-
-## Technique Registry
-
-```typescript
-// packages/core/src/solver/producers.ts
-// Ordered by difficulty — Solver tries them in this order
-
-export const DEFAULT_PRODUCERS: HintProducer[] = [
-  // Phase 1 — Direct (no candidates needed)
-  new NakedSingle(), // 1.0 / 2.3
-  new HiddenSingle('box'), // 1.2
-  new HiddenSingle('line'), // 1.5
-  new DirectPointing(), // 1.7
-  new DirectClaiming(), // 1.9
-  new DirectHiddenSet(2), // 2.0
-  new DirectHiddenSet(3), // 2.5
-
-  // Phase 2 — Candidate-based
-  new Locking('pointing'), // 2.6
-  new Locking('claiming'), // 2.8
-  new NakedSet(2), // 3.0
-  new Fisherman(2), // 3.2 — X-Wing
-  new HiddenSet(2), // 3.4
-  new NakedSet(3), // 3.6
-  new Fisherman(3), // 3.8 — Swordfish
-  new HiddenSet(3), // 4.0
-  new XYWing(), // 4.2
-  new XYWing({ xyz: true }), // 4.4
-
-  // Phase 3 — Uniqueness
-  new UniqueRectangle(), // 4.5–5.0
-  new NakedSet(4), // 5.0
-  new Fisherman(4), // 5.2 — Jellyfish
-  new HiddenSet(4), // 5.4
-  new BivalueUniversalGrave(), // 5.6–6.0
-
-  // Phase 4 — Chains (server-side only, not in default mobile producers)
-  // new AlignedPairExclusion(),  // 6.2
-  // new Chaining(...),           // 6.5+
-];
-```
 
 ---
 
@@ -393,99 +368,16 @@ SE rating format: `ED=hardest/hardest_without_BF/easiest`
 
 ---
 
-## Solver Orchestrator
-
-```typescript
-class Solver {
-  constructor(private producers: HintProducer[] = DEFAULT_PRODUCERS) {}
-
-  // Returns the first (easiest) applicable hint, or null if none found
-  getNextHint(grid: Grid): Hint | null {
-    for (const producer of this.producers) {
-      let found: Hint | null = null;
-      producer.getHints(grid, (hint) => {
-        found = hint;
-        return 'stop'; // short-circuit
-      });
-      if (found !== null) return found;
-    }
-    return null;
-  }
-
-  // Returns ALL hints from ALL producers (for analysis/UI)
-  getAllHints(grid: Grid): Hint[] {
-    const hints: Hint[] = [];
-    for (const producer of this.producers) {
-      producer.getHints(grid, (hint) => {
-        hints.push(hint);
-      });
-    }
-    return hints;
-  }
-
-  // Full puzzle analysis: solve completely, return difficulty rating + step list
-  analyzeGrid(grid: Grid): AnalysisResult {
-    // ... iteratively apply hints, recording each step
-    // difficulty = max hint.difficulty across all steps
-  }
-}
-```
-
----
-
 ## SE Benchmark Convention
 
 The benchmark compares TSudoku's technique detection and difficulty ratings against
 a corpus of puzzles with known SE ratings. It lives in `benchmarks/`.
 
-```bash
-pnpm benchmark
-# Output:
-# NakedSingle:    100.0% agreement (8,432 puzzles)
-# HiddenSingle:   100.0% agreement (7,103 puzzles)
-# NakedPair:       99.8% agreement (4,221 puzzles)
-# XWing:           99.1% agreement (1,847 puzzles)
-# ─────────────────────────────────────────────────
-# Overall rating:   97.3% correlation  r=0.971
-# CI status:        PASS (threshold: 95%)
-```
-
 **The benchmark is a CI gate.** If agreement drops below 95% on any implemented
 technique, CI fails. This is the project's credibility guarantee.
 
----
-
-## CLI Commands
-
-```bash
-# Solve a puzzle completely
-tsudoku solve <puzzle>
-
-# Get the next hint
-tsudoku hint <puzzle> [--type name|explanation|step|solution]
-
-# Validate a puzzle (unique solution, minimum 17 clues)
-tsudoku validate <puzzle>
-
-# Rate a puzzle (SE-compatible)
-tsudoku rate <puzzle>
-# → ED=3.8/2.6/1.2
-
-# Generate puzzles
-tsudoku generate [--difficulty <min>-<max>] [--technique <name>] [--count <n>]
-
-# Run full analysis with technique breakdown
-tsudoku analyze <puzzle> [--format json|text]
-
-# Benchmark SE parity
-tsudoku benchmark [--corpus <path>] [--technique <name>]
-
-# Cost modeling (for AI hint token economy)
-tsudoku cost-model [--monthly-users <n>] [--hints-per-user <n>]
-```
-
-Puzzle input format: 81-character string, digits 1–9 and `.` or `0` for empty cells.
-Example: `530070000600195000098000060800060003400803001700020006060000280000419005000080079`
+Currently the benchmark harness exists but reports no results (no techniques
+implemented, no corpus data).
 
 ---
 
@@ -511,10 +403,9 @@ describe('NakedSingle', () => {
 });
 ```
 
-### Test utilities to build
+### Test utilities (planned for packages/core/tests/helpers.ts)
 
 ```typescript
-// packages/core/tests/helpers.ts
 createGridFromString(puzzle: string): Grid
 createGridWithCandidates(puzzle: string, candidates: Record<number, number[]>): Grid
 expectHint(hint: Hint | null, expected: Partial<Hint>): void
@@ -522,48 +413,27 @@ expectNoHint(grid: Grid, producer: HintProducer): void
 loadCorpus(technique: Technique): TrainingSample[]
 ```
 
+Puzzle input format: 81-character string, digits 1–9 and `.` or `0` for empty cells.
+Example: `530070000600195000098000060800060003400803001700020006060000280000419005000080079`
+
 ---
 
-## AI Hint System (App Layer — not in core)
+## Release Process
 
-### Architecture
+Releases use Changesets with a two-phase workflow:
 
-```
-On-device (@tsudoku/core):  L1–L3 techniques (SE ≤ 4.4), instant, offline
-Server API (Node):           L4+ techniques + SE oracle for chains
-Claude API:                  Natural language hints, token-gated
-```
+1. **Version PR:** Changesets bot opens a "Version Packages" PR bumping versions + changelogs
+2. **Publish:** On merge of that PR, `release.yml` publishes changed packages to npm
 
-### Token Economy
+See `.github/workflows/release.yml` for the full automation.
 
-```
-Free:          Naked singles hints (rule engine, no cost)
-1 token:       Technique name only
-2 tokens:      Natural language explanation
-1 token/step:  Step-by-step walkthrough (full path generated once, revealed incrementally)
-5 tokens:      Full solution
-```
+**Required secrets:** `NPM_TOKEN`, `GITHUB_TOKEN`
 
-### Hint Validation Rule
+**npm publish requirements:**
 
-ALL Claude API responses must be validated against board state before:
-
-1. Displaying to user
-2. Debiting tokens
-   Validation failure → fall back to rule engine hint, no charge.
-
-### Model Selection
-
-```
-Technique name:   claude-haiku  (fast, cheap)
-Explanation:      claude-sonnet
-Walkthrough:      claude-sonnet
-```
-
-### Caching
-
-Cache key: `sha256(puzzleId + candidateBitmaskHash)`.
-Same board state → same deterministic hint → cache hit serves multiple users.
+- `NPM_CONFIG_PROVENANCE=true` — attestation links package to repo + workflow
+- All packages use `"publishConfig": { "access": "public", "provenance": true }`
+- Dual exports: `types` → `import` → `require` in every `package.json`
 
 ---
 
@@ -576,6 +446,7 @@ Same board state → same deterministic hint → cache hit serves multiple users
 - **Do not add chain techniques to `DEFAULT_PRODUCERS`.** They are server-only.
 - **Do not hardcode difficulty ratings inline.** Use `TECHNIQUE_DIFFICULTY` map.
 - **Do not add dependencies to `@tsudoku/core` without discussion.** Core must stay lean.
+- **Do not present planned features as implemented** in docs, README, or this file.
 
 ---
 
@@ -604,20 +475,6 @@ Chaining.java             → techniques/phase4/Chaining.ts (the big one)
 BivalueUniversalGrave.java→ techniques/phase3/BivalueUniversalGrave.ts
 UniqueLoop.java           → techniques/phase3/UniqueRectangle.ts + UniqueLoop.ts
 ```
-
----
-
-## Current Phase Status
-
-Update this section as phases complete:
-
-- [ ] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton)
-- [ ] **Phase 1** — Direct techniques (SE 1.0–2.5)
-- [ ] **Phase 2** — Candidate techniques (SE 2.6–4.4)
-- [ ] **Phase 3** — Uniqueness techniques (SE 4.5–6.0)
-- [ ] **Phase 4** — Chain techniques (SE 6.2+, server-side)
-- [ ] **Phase 5** — Generator + corpus pipeline
-- [ ] **Phase 6** — ML package (ONNX inference)
 
 ---
 

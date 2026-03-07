@@ -1,5 +1,11 @@
 # Quick Start
 
+::: warning NOT YET IMPLEMENTED
+The API shown below is the **planned** public interface. It is not functional yet. Implementation begins in Phase 1.
+:::
+
+The planned usage will look like:
+
 ```typescript
 import { createGrid, Solver } from '@tsudoku/core';
 
@@ -8,7 +14,7 @@ const grid = createGrid(puzzle);
 const solver = new Solver();
 
 const hint = solver.getNextHint(grid);
-console.log(hint);
+// Expected output (once implemented):
 // {
 //   type: 'direct',
 //   technique: 'NakedSingle',
