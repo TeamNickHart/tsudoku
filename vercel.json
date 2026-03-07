@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm --filter docs docs:build",
+  "outputDirectory": "docs/.vitepress/dist",
+  "installCommand": "pnpm install"
+}
