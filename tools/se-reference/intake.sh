@@ -31,20 +31,23 @@ mkdir -p "$PROCESSED_DIR"
 touch "$VERIFIED_FILE"
 touch "$REJECTED_FILE"
 
-# Build dedup set from existing verified + rejected puzzles
-declare -A KNOWN_PUZZLES
-while IFS= read -r line || [ -n "$line" ]; do
-  if [[ "$line" =~ \"puzzle\":\"([^\"]+)\" ]]; then
-    KNOWN_PUZZLES["${BASH_REMATCH[1]}"]=1
-  fi
-done < "$VERIFIED_FILE"
-while IFS= read -r line || [ -n "$line" ]; do
-  if [[ "$line" =~ \"puzzle\":\"([^\"]+)\" ]]; then
-    KNOWN_PUZZLES["${BASH_REMATCH[1]}"]=1
-  fi
-done < "$REJECTED_FILE"
+# Build dedup set from existing verified + rejected puzzles.
+# Uses a temp file with one puzzle per line for grep-based lookup
+# (compatible with Bash 3.2 on macOS — no associative arrays).
+KNOWN_PUZZLES_FILE=$(mktemp)
+trap 'rm -f "$KNOWN_PUZZLES_FILE"' EXIT
 
-echo "Loaded ${#KNOWN_PUZZLES[@]} known puzzles for dedup" >&2
+KNOWN_COUNT=0
+for jsonl_file in "$VERIFIED_FILE" "$REJECTED_FILE"; do
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" =~ \"puzzle\":\"([^\"]+)\" ]]; then
+      echo "${BASH_REMATCH[1]}" >> "$KNOWN_PUZZLES_FILE"
+      KNOWN_COUNT=$((KNOWN_COUNT + 1))
+    fi
+  done < "$jsonl_file"
+done
+
+echo "Loaded $KNOWN_COUNT known puzzles for dedup" >&2
 
 # Collect files to process
 FILES=()
@@ -129,7 +132,7 @@ for INPUT_FILE in "${FILES[@]}"; do
     short_puzzle="${puzzle:0:20}..."
 
     # Dedup check
-    if [ -n "${KNOWN_PUZZLES[$puzzle]+x}" ]; then
+    if grep -qxF "$puzzle" "$KNOWN_PUZZLES_FILE" 2>/dev/null; then
       printf "  [%d/%d] %s SKIP (duplicate)\n" "$FILE_NUM" "$PUZZLE_COUNT" "$short_puzzle" >&2
       FILE_SKIPPED=$((FILE_SKIPPED + 1))
       continue
@@ -154,12 +157,12 @@ for INPUT_FILE in "${FILES[@]}"; do
     if [ $rate_exit -eq 124 ]; then
       echo " TIMEOUT after ${SE_TIMEOUT}s" >&2
       echo "{\"puzzle\":\"$puzzle\",\"reason\":\"timeout\",\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$REJECTED_FILE"
-      KNOWN_PUZZLES["$puzzle"]=1
+      echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
       FILE_REJECTED=$((FILE_REJECTED + 1))
     elif [ $rate_exit -ne 0 ]; then
       echo " FAIL (${elapsed}s)" >&2
       echo "{\"puzzle\":\"$puzzle\",\"reason\":\"rating_failed\",\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$REJECTED_FILE"
-      KNOWN_PUZZLES["$puzzle"]=1
+      echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
       FILE_REJECTED=$((FILE_REJECTED + 1))
     elif [[ "$se_output" =~ ED=([0-9.]+)/([0-9.]+)/([0-9.]+) ]]; then
       rating="${BASH_REMATCH[1]}"
@@ -169,12 +172,12 @@ for INPUT_FILE in "${FILES[@]}"; do
 
       printf " ED=%s/%s/%s %s (%ds)\n" "$rating" "$pearl" "$diamond" "$technique" "$elapsed" >&2
       echo "{\"puzzle\":\"$puzzle\",\"se_rating\":$rating,\"se_pearl\":$pearl,\"se_diamond\":$diamond,\"se_technique\":\"$technique\",\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$VERIFIED_FILE"
-      KNOWN_PUZZLES["$puzzle"]=1
+      echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
       FILE_VERIFIED=$((FILE_VERIFIED + 1))
     else
       echo " FAIL: parse error (${elapsed}s)" >&2
       echo "{\"puzzle\":\"$puzzle\",\"reason\":\"parse_error\",\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$REJECTED_FILE"
-      KNOWN_PUZZLES["$puzzle"]=1
+      echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
       FILE_REJECTED=$((FILE_REJECTED + 1))
     fi
   done < "$INPUT_FILE"
