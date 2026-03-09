@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { NakedSingle } from '../../../src/techniques/phase1/NakedSingle.js';
 import { createGrid, getHints, getFirstHint, EASY_PUZZLE, SOLVED_PUZZLE } from '../../helpers.js';
 import { applyHint } from '../../../src/models/GridImpl.js';
+import { NAKED_SINGLE_DIFFICULTY } from '../../../src/types/Technique.js';
 
 describe('NakedSingle', () => {
   const producer = new NakedSingle();
@@ -67,16 +68,11 @@ describe('NakedSingle', () => {
     }
   });
 
-  it('uses difficulty 1.0 for last-value naked singles', () => {
-    // Build a grid where a cell is the last unsolved in all its regions
-    // A nearly-solved puzzle where one cell remains
-    const puzzle =
-      '53467891267219534819834256785976142342685379171392485696153728428741963534528617.';
-    const grid = createGrid(puzzle);
-    const hint = getFirstHint(producer, grid);
-    expect(hint).not.toBeNull();
-    if (hint !== null) {
-      expect(hint.difficulty).toBe(1.0);
+  it('always uses difficulty 2.3 (SE has no sub-ratings for NakedSingle)', () => {
+    const grid = createGrid(EASY_PUZZLE);
+    const hints = getHints(producer, grid);
+    for (const hint of hints) {
+      expect(hint.difficulty).toBe(NAKED_SINGLE_DIFFICULTY);
     }
   });
 });

@@ -9,10 +9,10 @@ export type { HintProducer } from './types/HintProducer.js';
 export type { Technique } from './types/Technique.js';
 export {
   TECHNIQUE_DIFFICULTY,
+  HIDDEN_SINGLE_ALONE_DIFFICULTY,
   HIDDEN_SINGLE_BOX_DIFFICULTY,
   HIDDEN_SINGLE_LINE_DIFFICULTY,
-  NAKED_SINGLE_LAST_VALUE_DIFFICULTY,
-  NAKED_SINGLE_GENERAL_DIFFICULTY,
+  NAKED_SINGLE_DIFFICULTY,
 } from './types/Technique.js';
 
 // Bitmask utilities

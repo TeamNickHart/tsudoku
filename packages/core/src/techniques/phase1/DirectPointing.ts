@@ -1,125 +1,135 @@
-import type { Grid } from '../../types/Grid.js';
+import type { Cell, Grid, Region } from '../../types/Grid.js';
 import type { HintAccumulator } from '../../types/Hint.js';
 import type { HintProducer } from '../../types/HintProducer.js';
 import { TECHNIQUE_DIFFICULTY } from '../../types/Technique.js';
-import { hasCandidate } from '../../candidates/bitmask.js';
+import type { Technique } from '../../types/Technique.js';
 
 function cellName(row: number, col: number): string {
   return `R${row + 1}C${col + 1}`;
 }
 
-// Direct Pointing: Within a box, if a digit's candidates all share the same
-// row or column, AND removing that digit from the rest of that row/col
-// leaves exactly one candidate in some cell, that cell gets placed directly.
-//
-// SE difficulty: 1.7
+function regionLabel(region: Region): string {
+  if (region.type === 'row') return `row ${region.index + 1}`;
+  if (region.type === 'col') return `column ${region.index + 1}`;
+  return `box ${region.index + 1}`;
+}
 
+/**
+ * Direct Pointing — matches SE's Locking.java (isDirectMode=true), pointing subset.
+ *
+ * For each box and each crossing line (column, then row), if a digit's candidates
+ * in the box are all confined to that line, look for induced hidden singles in
+ * OTHER boxes that also cross the same line.
+ *
+ * Scan order (matching SE):
+ *   Block × Column (all boxes, all columns)
+ *   Block × Row (all boxes, all rows)
+ *
+ * SE ref: diuf/sudoku/solver/rules/Locking.java — getHints() + lookForFollowingHiddenSingles()
+ */
 export class DirectPointing implements HintProducer {
   readonly technique = 'DirectPointing' as const;
   readonly difficulty = TECHNIQUE_DIFFICULTY.DirectPointing;
 
   getHints(grid: Grid, accumulator: HintAccumulator): void {
+    // SE order: Block×Column, then Block×Row
+    if (this.scanPointing(grid, accumulator, 'col')) return;
+    this.scanPointing(grid, accumulator, 'row');
+  }
+
+  private scanPointing(grid: Grid, accumulator: HintAccumulator, lineType: 'row' | 'col'): boolean {
     for (let boxIdx = 0; boxIdx < 9; boxIdx++) {
       const box = grid.getBox(boxIdx);
+      const lineCount = 9;
 
-      for (let digit = 1; digit <= 9; digit++) {
-        const candidateCells = box.getCandidateCells(digit);
-        if (candidateCells.length < 2 || candidateCells.length > 3) continue;
+      for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
+        const line = lineType === 'col' ? grid.getCol(lineIdx) : grid.getRow(lineIdx);
 
-        // Check if all candidate cells share a row
-        // Safe: candidateCells has at least 2 elements
-        const firstRow = candidateCells[0]!.row; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-        const allSameRow = candidateCells.every((c) => c.row === firstRow);
+        // Check if box and line cross (share cells)
+        if (!regionsCross(box, line)) continue;
 
-        if (allSameRow) {
-          const placement = this.findDirectPlacement(
-            grid,
-            grid.getRow(firstRow),
-            digit,
-            candidateCells.map((c) => c.index),
-            boxIdx,
-          );
-          if (placement !== null) {
-            const result = accumulator({
-              type: 'direct',
-              technique: 'DirectPointing',
-              difficulty: this.difficulty,
-              cell: placement.cellIndex,
-              digit: placement.digit,
-              explanation: `Pointing: ${digit} in box ${boxIdx + 1} is confined to row ${firstRow + 1}, placing ${placement.digit} in ${cellName(placement.row, placement.col)}`,
-              involvedCells: [...candidateCells.map((c) => c.index), placement.cellIndex],
-              involvedCandidates: new Map([
-                ...candidateCells.map((c) => [c.index, [digit]] as [number, number[]]),
-                [placement.cellIndex, [placement.digit]],
-              ]),
-            });
-            if (result === 'stop') return;
-          }
-        }
+        const lineCellSet = new Set(line.cells.map((c) => c.index));
 
-        // Check if all candidate cells share a column
-        // Safe: candidateCells has at least 2 elements
-        const firstCol = candidateCells[0]!.col; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-        const allSameCol = candidateCells.every((c) => c.col === firstCol);
+        for (let digit = 1; digit <= 9; digit++) {
+          const boxPositions = box.getCandidateCells(digit);
+          if (boxPositions.length <= 1) continue; // cardinality must be > 1
 
-        if (allSameCol) {
-          const placement = this.findDirectPlacement(
-            grid,
-            grid.getCol(firstCol),
-            digit,
-            candidateCells.map((c) => c.index),
-            boxIdx,
-          );
-          if (placement !== null) {
-            const result = accumulator({
-              type: 'direct',
-              technique: 'DirectPointing',
-              difficulty: this.difficulty,
-              cell: placement.cellIndex,
-              digit: placement.digit,
-              explanation: `Pointing: ${digit} in box ${boxIdx + 1} is confined to column ${firstCol + 1}, placing ${placement.digit} in ${cellName(placement.row, placement.col)}`,
-              involvedCells: [...candidateCells.map((c) => c.index), placement.cellIndex],
-              involvedCandidates: new Map([
-                ...candidateCells.map((c) => [c.index, [digit]] as [number, number[]]),
-                [placement.cellIndex, [placement.digit]],
-              ]),
-            });
-            if (result === 'stop') return;
+          // Check if ALL candidates for digit in box are within the line
+          const allInLine = boxPositions.every((c) => lineCellSet.has(c.index));
+          if (!allInLine) continue;
+
+          // Pointing found: digit in box is locked to line.
+          // Look for induced hidden singles in OTHER boxes crossing the same line.
+          if (
+            this.lookForFollowingHiddenSingles(grid, accumulator, boxIdx, line, digit, boxPositions)
+          ) {
+            return true;
           }
         }
       }
     }
+    return false;
   }
 
-  private findDirectPlacement(
+  /**
+   * SE's lookForFollowingHiddenSingles: for each OTHER box that crosses the
+   * same line, check if removing the locked digit's line positions from that
+   * box leaves exactly one candidate for the digit — an induced hidden single.
+   */
+  private lookForFollowingHiddenSingles(
     grid: Grid,
-    line: { readonly cells: readonly import('../../types/Grid.js').Cell[] },
-    lockedDigit: number,
-    lockedCellIndices: readonly number[],
-    boxIdx: number,
-  ): { cellIndex: number; digit: number; row: number; col: number } | null {
-    // After removing lockedDigit from cells in the line outside the box,
-    // check if any cell in the line (outside the box) ends up with exactly
-    // one candidate remaining.
-    const lockedSet = new Set(lockedCellIndices);
+    accumulator: HintAccumulator,
+    sourceBoxIdx: number,
+    line: Region,
+    digit: number,
+    lockingCells: readonly Cell[],
+  ): boolean {
+    const lineCellSet = new Set(line.cells.map((c) => c.index));
 
-    for (const cell of line.cells) {
-      if (cell.value !== null) continue;
-      if (cell.box === boxIdx) continue;
-      if (lockedSet.has(cell.index)) continue;
+    for (let otherBoxIdx = 0; otherBoxIdx < 9; otherBoxIdx++) {
+      if (otherBoxIdx === sourceBoxIdx) continue;
 
-      if (!hasCandidate(cell.candidates, lockedDigit)) continue;
+      const otherBox = grid.getBox(otherBoxIdx);
+      if (!regionsCross(otherBox, line)) continue;
 
-      // This cell would lose lockedDigit. Check if it becomes a naked single.
-      if (cell.candidateCount === 2) {
-        // After removing lockedDigit, exactly one candidate remains
-        for (const d of cell.candidateList) {
-          if (d !== lockedDigit) {
-            return { cellIndex: cell.index, digit: d, row: cell.row, col: cell.col };
-          }
+      // Count candidates for digit in otherBox that are NOT in the line
+      const otherPositions = otherBox.getCandidateCells(digit);
+      if (otherPositions.length <= 1) continue; // must have > 1 to be reduced
+
+      let remainCount = 0;
+      let lastRemaining: Cell | null = null;
+      for (const cell of otherPositions) {
+        if (!lineCellSet.has(cell.index)) {
+          remainCount++;
+          lastRemaining = cell;
         }
       }
+
+      if (remainCount === 1 && lastRemaining !== null) {
+        // Induced hidden single: digit must go in lastRemaining
+        const technique: Technique = 'DirectPointing';
+        const result = accumulator({
+          type: 'direct',
+          technique,
+          difficulty: this.difficulty,
+          cell: lastRemaining.index,
+          digit,
+          explanation: `Pointing: ${digit} in ${regionLabel(grid.getBox(sourceBoxIdx))} is confined to ${regionLabel(line)}, placing ${digit} in ${cellName(lastRemaining.row, lastRemaining.col)}`,
+          involvedCells: [...lockingCells.map((c) => c.index), lastRemaining.index],
+          involvedCandidates: new Map([
+            ...lockingCells.map((c) => [c.index, [digit]] as [number, number[]]),
+            [lastRemaining.index, [digit]],
+          ]),
+        });
+        if (result === 'stop') return true;
+      }
     }
-    return null;
+    return false;
   }
+}
+
+/** Check if two regions share any cells */
+function regionsCross(a: Region, b: Region): boolean {
+  const bSet = new Set(b.cells.map((c) => c.index));
+  return a.cells.some((c) => bSet.has(c.index));
 }

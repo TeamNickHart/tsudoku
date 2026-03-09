@@ -1,75 +1,145 @@
-import type { Grid } from '../../types/Grid.js';
+import type { Cell, Grid, Region } from '../../types/Grid.js';
 import type { HintAccumulator } from '../../types/Hint.js';
 import type { HintProducer } from '../../types/HintProducer.js';
 import { TECHNIQUE_DIFFICULTY } from '../../types/Technique.js';
-import { hasCandidate } from '../../candidates/bitmask.js';
+import type { Technique } from '../../types/Technique.js';
 
 function cellName(row: number, col: number): string {
   return `R${row + 1}C${col + 1}`;
 }
 
-// Direct Claiming: Within a row or column, if a digit's candidates all fall
-// in the same box, AND removing that digit from the rest of the box leaves
-// exactly one candidate in some cell, that cell gets placed directly.
-//
-// SE difficulty: 1.9
+function regionLabel(region: Region): string {
+  if (region.type === 'row') return `row ${region.index + 1}`;
+  if (region.type === 'col') return `column ${region.index + 1}`;
+  return `box ${region.index + 1}`;
+}
 
+/**
+ * Direct Claiming — matches SE's Locking.java (isDirectMode=true), claiming subset.
+ *
+ * For each line (column, then row) and each crossing box, if a digit's candidates
+ * in the line are all confined to that box, look for induced hidden singles in
+ * OTHER lines of the same type that also cross the same box.
+ *
+ * Scan order (matching SE):
+ *   Column × Block (all columns, all boxes)
+ *   Row × Block (all rows, all boxes)
+ *
+ * SE ref: diuf/sudoku/solver/rules/Locking.java — getHints() + lookForFollowingHiddenSingles()
+ */
 export class DirectClaiming implements HintProducer {
   readonly technique = 'DirectClaiming' as const;
   readonly difficulty = TECHNIQUE_DIFFICULTY.DirectClaiming;
 
   getHints(grid: Grid, accumulator: HintAccumulator): void {
-    // Check rows and columns (not boxes — that's pointing)
-    for (let regionIdx = 0; regionIdx < 18; regionIdx++) {
-      const region = regionIdx < 9 ? grid.getRow(regionIdx) : grid.getCol(regionIdx - 9);
+    // SE order: Column×Block, then Row×Block
+    if (this.scanClaiming(grid, accumulator, 'col')) return;
+    this.scanClaiming(grid, accumulator, 'row');
+  }
 
-      for (let digit = 1; digit <= 9; digit++) {
-        const candidateCells = region.getCandidateCells(digit);
-        if (candidateCells.length < 2 || candidateCells.length > 3) continue;
+  private scanClaiming(grid: Grid, accumulator: HintAccumulator, lineType: 'row' | 'col'): boolean {
+    for (let lineIdx = 0; lineIdx < 9; lineIdx++) {
+      const line = lineType === 'col' ? grid.getCol(lineIdx) : grid.getRow(lineIdx);
 
-        // Check if all candidate cells share the same box
-        // Safe: candidateCells has at least 2 elements
-        const firstBox = candidateCells[0]!.box; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-        const allSameBox = candidateCells.every((c) => c.box === firstBox);
+      for (let boxIdx = 0; boxIdx < 9; boxIdx++) {
+        const box = grid.getBox(boxIdx);
 
-        if (!allSameBox) continue;
+        // Check if line and box cross (share cells)
+        if (!regionsCross(line, box)) continue;
 
-        // The digit is locked to this box from this line.
-        // Check if removing it from other cells in the box creates a naked single.
-        const box = grid.getBox(firstBox);
-        const lockedSet = new Set(candidateCells.map((c) => c.index));
+        const boxCellSet = new Set(box.cells.map((c) => c.index));
 
-        for (const cell of box.cells) {
-          if (cell.value !== null) continue;
-          if (lockedSet.has(cell.index)) continue;
-          if (!hasCandidate(cell.candidates, digit)) continue;
+        for (let digit = 1; digit <= 9; digit++) {
+          const linePositions = line.getCandidateCells(digit);
+          if (linePositions.length <= 1) continue;
 
-          // This cell would lose the digit. Does it become a naked single?
-          if (cell.candidateCount === 2) {
-            for (const d of cell.candidateList) {
-              if (d !== digit) {
-                const lineType = regionIdx < 9 ? 'row' : 'column';
-                const lineNum = regionIdx < 9 ? regionIdx + 1 : regionIdx - 8;
+          // Check if ALL candidates for digit in line are within the box
+          const allInBox = linePositions.every((c) => boxCellSet.has(c.index));
+          if (!allInBox) continue;
 
-                const result = accumulator({
-                  type: 'direct',
-                  technique: 'DirectClaiming',
-                  difficulty: this.difficulty,
-                  cell: cell.index,
-                  digit: d,
-                  explanation: `Claiming: ${digit} in ${lineType} ${lineNum} is confined to box ${firstBox + 1}, placing ${d} in ${cellName(cell.row, cell.col)}`,
-                  involvedCells: [...candidateCells.map((c) => c.index), cell.index],
-                  involvedCandidates: new Map([
-                    ...candidateCells.map((c) => [c.index, [digit]] as [number, number[]]),
-                    [cell.index, [d]],
-                  ]),
-                });
-                if (result === 'stop') return;
-              }
-            }
+          // Claiming found: digit in line is locked to box.
+          // Look for induced hidden singles in OTHER lines crossing the same box.
+          if (
+            this.lookForFollowingHiddenSingles(
+              grid,
+              accumulator,
+              lineIdx,
+              lineType,
+              box,
+              digit,
+              linePositions,
+            )
+          ) {
+            return true;
           }
         }
       }
     }
+    return false;
   }
+
+  /**
+   * SE's lookForFollowingHiddenSingles: for each OTHER line of the same type
+   * that crosses the same box, check if removing the locked digit's box positions
+   * from that line leaves exactly one candidate for the digit — an induced hidden single.
+   */
+  private lookForFollowingHiddenSingles(
+    grid: Grid,
+    accumulator: HintAccumulator,
+    sourceLineIdx: number,
+    lineType: 'row' | 'col',
+    box: Region,
+    digit: number,
+    lockingCells: readonly Cell[],
+  ): boolean {
+    const boxCellSet = new Set(box.cells.map((c) => c.index));
+
+    for (let otherLineIdx = 0; otherLineIdx < 9; otherLineIdx++) {
+      if (otherLineIdx === sourceLineIdx) continue;
+
+      const otherLine = lineType === 'col' ? grid.getCol(otherLineIdx) : grid.getRow(otherLineIdx);
+      if (!regionsCross(otherLine, box)) continue;
+
+      // Count candidates for digit in otherLine that are NOT in the box
+      const otherPositions = otherLine.getCandidateCells(digit);
+      if (otherPositions.length <= 1) continue;
+
+      let remainCount = 0;
+      let lastRemaining: Cell | null = null;
+      for (const cell of otherPositions) {
+        if (!boxCellSet.has(cell.index)) {
+          remainCount++;
+          lastRemaining = cell;
+        }
+      }
+
+      if (remainCount === 1 && lastRemaining !== null) {
+        // Induced hidden single: digit must go in lastRemaining
+        const sourceLine =
+          lineType === 'col' ? grid.getCol(sourceLineIdx) : grid.getRow(sourceLineIdx);
+        const technique: Technique = 'DirectClaiming';
+        const result = accumulator({
+          type: 'direct',
+          technique,
+          difficulty: this.difficulty,
+          cell: lastRemaining.index,
+          digit,
+          explanation: `Claiming: ${digit} in ${regionLabel(sourceLine)} is confined to ${regionLabel(box)}, placing ${digit} in ${cellName(lastRemaining.row, lastRemaining.col)}`,
+          involvedCells: [...lockingCells.map((c) => c.index), lastRemaining.index],
+          involvedCandidates: new Map([
+            ...lockingCells.map((c) => [c.index, [digit]] as [number, number[]]),
+            [lastRemaining.index, [digit]],
+          ]),
+        });
+        if (result === 'stop') return true;
+      }
+    }
+    return false;
+  }
+}
+
+/** Check if two regions share any cells */
+function regionsCross(a: Region, b: Region): boolean {
+  const bSet = new Set(b.cells.map((c) => c.index));
+  return a.cells.some((c) => bSet.has(c.index));
 }
