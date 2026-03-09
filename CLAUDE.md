@@ -415,8 +415,18 @@ a corpus of puzzles with known SE ratings. It lives in `benchmarks/`.
 **The benchmark is a CI gate.** If agreement drops below 95% on any implemented
 technique, CI fails. This is the project's credibility guarantee.
 
-Currently the benchmark harness exists but reports no results (no techniques
-implemented, no corpus data).
+### Corpus Target
+
+**~100 puzzles per technique**, grouped by the exact SE technique required (the
+hardest technique in the solve path). This serves both benchmark validation and
+as pre-generated puzzle content for the mobile app.
+
+When implementing a new technique, build the corpus for it before marking it
+done. Don't move on to the next technique without corpus coverage.
+
+**Difficulty levels for the app** use technique-based grouping (Option A):
+each unique SE technique/rating is its own level. This supports a teaching-
+oriented UX where users progress through techniques.
 
 ---
 
