@@ -128,6 +128,14 @@ for INPUT_FILE in "${FILES[@]}"; do
       continue
     fi
 
+    # A valid Sudoku with a unique solution requires at least 17 clues
+    clue_count=$(echo "$puzzle" | tr -cd '1-9' | wc -c | tr -d ' ')
+    if [ "$clue_count" -lt 17 ]; then
+      echo "  SKIP: Too few clues ($clue_count < 17): ${puzzle:0:30}..." >&2
+      FILE_INVALID=$((FILE_INVALID + 1))
+      continue
+    fi
+
     FILE_NUM=$((FILE_NUM + 1))
     short_puzzle="${puzzle:0:20}..."
 
