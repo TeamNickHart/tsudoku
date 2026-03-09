@@ -12,6 +12,13 @@ scripts to set up and run the SE CLI locally.
   - Debian/Ubuntu: `sudo apt-get install openjdk-17-jre-headless`
   - Windows: `winget install Microsoft.OpenJDK.17` or [Adoptium](https://adoptium.net)
 
+> **macOS note:** Homebrew OpenJDK isn't on the default PATH. Add this to your
+> shell profile (`~/.zshrc` or `~/.bashrc`):
+>
+> ```bash
+> export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+> ```
+
 ## Setup
 
 ```bash
@@ -37,6 +44,76 @@ bash tools/se-reference/rate.sh puzzles.txt
 ```
 
 Output format: `<puzzle> ED=<hardest>/<hardest_without_BF>/<easiest>`
+
+## Puzzle intake pipeline
+
+New puzzles go through a screening pipeline before entering the benchmark corpus.
+This prevents wasting time on unsolvable or overly hard puzzles.
+
+### Directory structure
+
+```
+data/puzzles/
+├── unverified/          ← drop new puzzle files here
+│   └── processed/       ← intake moves files here after processing (gitignored)
+├── verified/
+│   └── puzzles.jsonl    ← all verified puzzles (single append-only file)
+└── rejected/
+    └── puzzles.jsonl    ← failed puzzles with reasons
+```
+
+### Adding new puzzles
+
+1. Create a `.txt` file in `data/puzzles/unverified/` with one 81-char puzzle per line.
+   Optional header comments for metadata:
+
+   ```
+   # source: sudokuwiki.org/daily
+   # claimed_rating: easy
+   530070000600195000098000060...
+   ```
+
+2. Run the intake pipeline:
+
+   ```bash
+   pnpm puzzle:intake                    # process all files in unverified/
+   pnpm puzzle:intake myfile.txt          # process a specific file
+   SE_TIMEOUT=30 pnpm puzzle:intake       # custom timeout (default: 30s)
+   ```
+
+3. Rebuild the corpus from verified puzzles:
+
+   ```bash
+   pnpm puzzle:build-corpus
+   ```
+
+The intake script:
+
+- Validates puzzle format (81 chars, digits 0-9 and dots)
+- Deduplicates against existing verified and rejected puzzles
+- Rates each puzzle via SE with a configurable timeout (default 30s)
+- Appends results to `verified/puzzles.jsonl` or `rejected/puzzles.jsonl`
+- Moves processed files to `unverified/processed/`
+
+### Corpus build
+
+`build-corpus.sh` filters `verified/puzzles.jsonl` by SE rating into phase-specific
+corpus files used by the benchmark:
+
+| Phase | Rating range | Output file                      |
+| ----- | ------------ | -------------------------------- |
+| 1     | 1.0–2.5      | `benchmarks/corpus/phase1.jsonl` |
+| 2     | 2.6–4.4      | `benchmarks/corpus/phase2.jsonl` |
+| 3     | 4.5–6.0      | `benchmarks/corpus/phase3.jsonl` |
+| 4     | 6.2+         | `benchmarks/corpus/phase4.jsonl` |
+
+## Generating a corpus directly
+
+For ad-hoc corpus generation (without the intake pipeline):
+
+```bash
+bash tools/se-reference/generate-corpus.sh data/puzzles/phase1-seeds.txt > benchmarks/corpus/phase1.jsonl
+```
 
 ## How the benchmark uses SE
 
