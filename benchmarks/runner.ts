@@ -42,6 +42,8 @@ interface TechniqueResult {
   agreed: number;
   disagreed: number;
   errors: string[];
+  totalTimeMs: number;
+  totalSteps: number;
 }
 
 function parsePhases(args: string[]): number[] {
@@ -70,6 +72,7 @@ function solvePuzzle(puzzle: string): {
   hardestDifficulty: number;
   hardestTechnique: string;
   steps: number;
+  elapsedMs: number;
 } {
   const solver = new Solver();
   let grid: Grid = createGrid(puzzle);
@@ -78,6 +81,7 @@ function solvePuzzle(puzzle: string): {
   let steps = 0;
   const maxSteps = 500;
 
+  const start = performance.now();
   while (steps < maxSteps) {
     const hint: Hint | null = solver.getNextHint(grid);
     if (hint === null) break;
@@ -90,8 +94,9 @@ function solvePuzzle(puzzle: string): {
     grid = applyHint(grid, hint);
     steps++;
   }
+  const elapsedMs = performance.now() - start;
 
-  return { hardestDifficulty, hardestTechnique, steps };
+  return { hardestDifficulty, hardestTechnique, steps, elapsedMs };
 }
 
 function ratingsAgree(tsudokuRating: number, seRating: number): boolean {
@@ -106,6 +111,8 @@ function run(): void {
   let totalAgreed = 0;
   let totalDisagreed = 0;
   let totalSkipped = 0;
+  let totalTimeMs = 0;
+  let totalSteps = 0;
   let hasFailed = false;
 
   const techniqueResults = new Map<string, TechniqueResult>();
@@ -138,14 +145,26 @@ function run(): void {
       const result = solvePuzzle(entry.puzzle);
       const agreed = ratingsAgree(result.hardestDifficulty, entry.se_rating);
 
+      totalTimeMs += result.elapsedMs;
+      totalSteps += result.steps;
+
       // Track per-technique results
       const key = entry.se_technique;
       if (!techniqueResults.has(key)) {
-        techniqueResults.set(key, { total: 0, agreed: 0, disagreed: 0, errors: [] });
+        techniqueResults.set(key, {
+          total: 0,
+          agreed: 0,
+          disagreed: 0,
+          errors: [],
+          totalTimeMs: 0,
+          totalSteps: 0,
+        });
       }
       // Safe: just set above if missing
       const techResult = techniqueResults.get(key)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       techResult.total++;
+      techResult.totalTimeMs += result.elapsedMs;
+      techResult.totalSteps += result.steps;
 
       if (agreed) {
         techResult.agreed++;
@@ -214,6 +233,31 @@ function run(): void {
     `Overall: ${totalAgreed}/${totalEntries} (${overallPct.toFixed(1)}%) [${totalSkipped} skipped]`,
   );
   console.log(`Agreement threshold: ${AGREEMENT_THRESHOLD * 100}%`);
+
+  // Performance report
+  console.log();
+  console.log('Performance');
+  console.log('─'.repeat(60));
+
+  for (const [technique, result] of sortedTechniques) {
+    const avgMs = result.total > 0 ? result.totalTimeMs / result.total : 0;
+    const avgSteps = result.total > 0 ? result.totalSteps / result.total : 0;
+    const perStep = result.totalSteps > 0 ? result.totalTimeMs / result.totalSteps : 0;
+    console.log(
+      `  ${technique.padEnd(25)} ${avgMs.toFixed(2).padStart(7)}ms/puzzle  ${avgSteps.toFixed(0).padStart(4)} steps/puzzle  ${perStep.toFixed(3).padStart(6)}ms/step`,
+    );
+  }
+
+  console.log('─'.repeat(60));
+  const overallAvgMs = totalEntries > 0 ? totalTimeMs / totalEntries : 0;
+  const overallAvgSteps = totalEntries > 0 ? totalSteps / totalEntries : 0;
+  const overallPerStep = totalSteps > 0 ? totalTimeMs / totalSteps : 0;
+  console.log(
+    `  ${'Total'.padEnd(25)} ${totalTimeMs.toFixed(0).padStart(7)}ms         ${String(totalSteps).padStart(4)} steps         ${overallPerStep.toFixed(3).padStart(6)}ms/step`,
+  );
+  console.log(
+    `  ${'Average'.padEnd(25)} ${overallAvgMs.toFixed(2).padStart(7)}ms/puzzle  ${overallAvgSteps.toFixed(0).padStart(4)} steps/puzzle`,
+  );
   console.log();
 
   if (hasFailed) {
