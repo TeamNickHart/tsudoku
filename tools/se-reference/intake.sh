@@ -178,6 +178,15 @@ for INPUT_FILE in "${FILES[@]}"; do
       diamond="${BASH_REMATCH[3]}"
       technique=$(rating_to_technique "$rating")
 
+      # SE rates unsolvable puzzles as 20.0 — reject them
+      if [ "$rating" = "20.0" ]; then
+        printf " ED=%s/%s/%s REJECTED (unsolvable) (%ds)\n" "$rating" "$pearl" "$diamond" "$elapsed" >&2
+        echo "{\"puzzle\":\"$puzzle\",\"reason\":\"unsolvable\",\"se_rating\":$rating,\"se_pearl\":$pearl,\"se_diamond\":$diamond,\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$REJECTED_FILE"
+        echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
+        FILE_REJECTED=$((FILE_REJECTED + 1))
+        continue
+      fi
+
       printf " ED=%s/%s/%s %s (%ds)\n" "$rating" "$pearl" "$diamond" "$technique" "$elapsed" >&2
       echo "{\"puzzle\":\"$puzzle\",\"se_rating\":$rating,\"se_pearl\":$pearl,\"se_diamond\":$diamond,\"se_technique\":\"$technique\",\"source\":\"$FILE_SOURCE\",\"claimed_rating\":\"$FILE_CLAIMED_RATING\",\"intake_date\":\"$TODAY\"}" >> "$VERIFIED_FILE"
       echo "$puzzle" >> "$KNOWN_PUZZLES_FILE"
