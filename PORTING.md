@@ -4,8 +4,17 @@ This document ensures a uniform approach across all technique ports.
 
 ## Guiding Principles
 
-1. **Results over structure:** Match SE output exactly; internal implementation may differ freely.
-2. **Idiomatic TypeScript:** No Java-isms. No null returns where `| null` types work. No mutable shared state.
+1. **Structure _and_ results:** Mirror the SE Java source line by line — same
+   structure, same iteration order, same control flow — and match SE's output
+   exactly. Undiscussed divergence is a bug, not a style choice. (This is
+   CLAUDE.md's Cardinal Rule; earlier revisions of this file said "internal
+   implementation may differ freely", which was wrong and contradicted it.)
+   If a Java concept doesn't map cleanly to TypeScript, stop and discuss. If you
+   spot an improvement over SE's algorithm, note it in `notes/improvements.md`
+   rather than changing the code.
+2. **Idiomatic TypeScript, within that constraint:** use TS syntax and idioms —
+   no Java-isms, no null returns where `| null` works, no mutable shared state —
+   but the code should still read as a direct translation of the Java.
 3. **One technique, one file:** Each technique lives in a single `.ts` file.
 4. **Test first:** Write SE parity tests before implementation.
 5. **ADR before divergence:** Non-trivial departures from Java structure need an ADR.
@@ -20,7 +29,8 @@ For every technique:
 4. Implement `HintProducer`
 5. Register in `packages/core/src/solver/producers.ts` at correct difficulty position
 6. Add to `Technique` type union and `TECHNIQUE_DIFFICULTY` map
-7. Run `pnpm benchmark --technique MyTechnique` -- verify >= 99% agreement
+7. Run `pnpm benchmark:quick` -- verify >= 99% agreement for the technique
+   (note: a `--technique` filter does not exist yet; the runner takes `--phases=`)
 
 ## Java to TypeScript Translation Patterns
 
@@ -138,13 +148,16 @@ Every technique must have tests for:
 
 ```typescript
 createGrid(puzzleString: string): Grid
-createGridWithState(puzzle: string, candidateOverrides: Record<number, number[]>): Grid
 getHints(producer: HintProducer, grid: Grid): Hint[]
 getFirstHint(producer: HintProducer, grid: Grid): Hint | null
-expectHint(hint: Hint | null, expected: Partial<Hint>): void
-expectNoHint(grid: Grid, producer: HintProducer): void
-loadCorpus(technique: Technique): CorpusEntry[]
+
+// Fixture puzzles
+EASY_PUZZLE, POINTING_PUZZLE, CLAIMING_PUZZLE, SOLVED_PUZZLE
 ```
+
+That's the whole surface today. `createGridWithState`, `expectHint`,
+`expectNoHint` and `loadCorpus` were specified here but never written — add them
+if you need them rather than assuming they exist.
 
 ## Java Class to TypeScript File Mapping
 
@@ -173,4 +186,4 @@ loadCorpus(technique: Technique): CorpusEntry[]
 - Do not add chain techniques to `DEFAULT_PRODUCERS` (server-side only)
 - Do not hardcode difficulty ratings inline -- use `TECHNIQUE_DIFFICULTY` map
 - Do not skip the non-detection test
-- Do not open a PR without running `pnpm benchmark --technique <name>`
+- Do not open a PR without running `pnpm benchmark:quick`

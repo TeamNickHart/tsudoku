@@ -10,12 +10,18 @@
 
 TSudoku (`@tsudoku/*`) is an open-source TypeScript port of SudokuExplainer —
 the gold-standard Java Sudoku technique classifier used by the competitive Sudoku
-community for 20 years. The goal is to be the first complete, idiomatic TypeScript
+community for 20 years. It is the first complete, idiomatic TypeScript
 implementation of human-readable Sudoku technique detection, running natively in
 Node.js, browsers, and React Native (Hermes). Zero JVM dependency.
 
+**The engine is a means, not the end.** The goal is a fun, educational Sudoku
+game that _teaches techniques_ — web first (fast iteration), then React Native.
+A CLI supports testing, training, and content authoring. This is a hobby
+project and should stay fun; it's also genuinely open source, so keep it
+legible to contributors who find tsudoku.dev.
+
 - **Domain:** tsudoku.dev
-- **GitHub:** github.com/tsudoku/tsudoku
+- **GitHub:** github.com/TeamNickHart/tsudoku
 - **npm scope:** `@tsudoku`
 - **License:** MIT
 - **Tagline:** A TypeScript-first Sudoku engine. Human techniques, machine precision.
@@ -47,16 +53,35 @@ should do the same unless there's a discussed reason to split.
 
 ## Current Phase Status
 
-- [x] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton) ✅
-- [ ] **Phase 1** — Direct techniques (SE 1.0–2.5)
-- [ ] **Phase 2** — Candidate techniques (SE 2.6–4.4)
-- [ ] **Phase 3** — Uniqueness techniques (SE 4.5–6.0)
-- [ ] **Phase 4** — Chain techniques (SE 6.2+, server-side)
-- [ ] **Phase 5** — Generator + corpus pipeline
-- [ ] **Phase 6** — ML package (ONNX inference)
+> **`STATUS.md` is the source of truth** for current state, the backlog, and
+> known issues. It's the living document; this file holds durable conventions.
+> If the two disagree, STATUS.md wins — and fix this file.
 
-**No solving techniques are implemented yet.** The monorepo scaffold, CI pipeline,
-docs site, and benchmark harness are complete.
+- [x] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton) ✅
+- [x] **Phase 1** — Direct techniques (SE 1.0–2.5) ✅ **607/607 (100%) SE parity**
+- [ ] **Phase 2** — Candidate techniques (SE 2.6–4.4) ← next, with the generator
+- [ ] **Phase 3** — Uniqueness techniques (SE 4.5–6.0)
+- [ ] **Phase 4** — Chain techniques (SE 6.2+, server-side) — deprioritized
+- [ ] **Generator** — moved up: Phase 2 has no validation corpus without it
+- [ ] **ML package** — blocked on the generator by deliberate rule
+
+Five producers are live in `DEFAULT_PRODUCERS`: `HiddenSingle`,
+`DirectPointing`, `DirectClaiming`, `DirectHiddenSet(2)`, `NakedSingle`,
+`DirectHiddenSet(3)`.
+
+### Landmines to know before you start
+
+- **`applyHint` cannot apply an `EliminationHint`.** In
+  `packages/core/src/models/GridImpl.ts` the elimination branch computes
+  `newCandidates`, discards it via `void newCandidates`, and rebuilds from cell
+  values only. Harmless in Phase 1 (all hints are `DirectHint`) but **it blocks
+  all of Phase 2**, which is entirely elimination-based. Fix this first.
+- **The benchmark silently passes techniques with no corpus.** The runner
+  filters to implemented techniques, so zero puzzles ⇒ zero failures ⇒ PASS.
+  `DirectClaiming` is live and has never been validated. Every Phase 2
+  technique will land in the same blind spot.
+- **`pnpm benchmark --technique <name>` does not exist** despite being cited in
+  PORTING.md step 7 and the PR template. The runner only parses `--phases=`.
 
 ### SE Oracle Integration
 
@@ -234,11 +259,14 @@ pnpm changeset          # create a new changeset for release
 
 ---
 
-## Design Targets (not yet implemented)
+## Core Architecture (implemented)
 
-The sections below describe the **planned** architecture for the core engine.
-These are design references for Phase 1+ implementation — none of this code
-exists yet.
+The sections below describe the **live** architecture of `@tsudoku/core`. All of
+it exists and is exercised by the Phase 1 techniques — the type signatures here
+match the real source. Treat them as the contract when adding techniques.
+
+The one exception is `applyHint`'s elimination path, which is written but does
+not work — see the landmines under Current Phase Status.
 
 ### The Candidate Bitmask (most important convention)
 
@@ -452,14 +480,23 @@ describe('NakedSingle', () => {
 });
 ```
 
-### Test utilities (planned for packages/core/tests/helpers.ts)
+### Test utilities (`packages/core/tests/helpers.ts`)
+
+These are the actual exports:
 
 ```typescript
-createGridFromString(puzzle: string): Grid
-createGridWithCandidates(puzzle: string, candidates: Record<number, number[]>): Grid
-expectHint(hint: Hint | null, expected: Partial<Hint>): void
-expectNoHint(grid: Grid, producer: HintProducer): void
-loadCorpus(technique: Technique): TrainingSample[]
+createGrid(puzzle: string): Grid              // re-exported from GridImpl
+getHints(producer: HintProducer, grid: Grid): Hint[]
+getFirstHint(producer: HintProducer, grid: Grid): Hint | null
+
+// Fixture puzzles
+EASY_PUZZLE, POINTING_PUZZLE, CLAIMING_PUZZLE, SOLVED_PUZZLE
+```
+
+Run a single test file:
+
+```bash
+cd packages/core && npx vitest run tests/techniques/phase1/NakedSingle.test.ts
 ```
 
 Puzzle input format: 81-character string, digits 1–9 and `.` or `0` for empty cells.
@@ -483,6 +520,53 @@ See `.github/workflows/release.yml` for the full automation.
 - `NPM_CONFIG_PROVENANCE=true` — attestation links package to repo + workflow
 - All packages use `"publishConfig": { "access": "public", "provenance": true }`
 - Dual exports: `types` → `import` → `require` in every `package.json`
+
+---
+
+## App Architecture (planned)
+
+The engine is pure (immutable, no I/O, no framework), so it runs unmodified on
+Hermes. The risk is **game logic leaking into UI components** and needing a
+rewrite for the React Native port.
+
+```
+@tsudoku/core          pure engine                          [working]
+@tsudoku/game          game state — no UI, no React         [planned]
+@tsudoku/web  +  @tsudoku/react-native   thin UI layers     [planned]
+```
+
+`@tsudoku/game` owns the game but not the pixels: current puzzle, pencil marks,
+undo/redo, mistakes, hint requests, lesson progression, timer, win detection,
+persistence as plain data.
+
+**The rule that keeps the RN port cheap: a UI package may not contain a
+decision.** Components render state and dispatch intents. If a component asks
+"is this legal?" or "what's the next hint?", that belongs in `@tsudoku/game`.
+
+- Expose a plain store/reducer with a thin `useGame()` adapter per platform —
+  not React-specific hooks that bake in web idioms.
+- **Pencil marks are not candidates.** The engine's `candidates` bitmask is
+  truth; the player's marks are a separate, possibly-wrong artifact. Keep them
+  distinct fields. Conflating them is the classic Sudoku-app bug.
+
+---
+
+## Where AI Fits
+
+**AI at build time, determinism at runtime.** The engine already emits grounded
+explanations plus `involvedCells`/`involvedCandidates` for every hint, so the
+deterministic tutor is mostly built already.
+
+- **Offline lesson authoring** — best value. Zero runtime cost/risk, reviewed
+  before shipping.
+- **"Why am I stuck?"** — worth it, but build the deterministic diagnosis first
+  (the engine knows every applicable hint; the corpus is grouped by technique,
+  so it's a lookup). AI only phrases the result.
+- **Rewording hints at runtime** — skip or defer. Pays per call to restate what
+  is already correct, and can introduce error into the one place correctness is
+  the whole credibility claim.
+
+Don't quote per-call costs without looking up current model pricing.
 
 ---
 
