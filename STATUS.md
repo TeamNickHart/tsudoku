@@ -221,6 +221,12 @@ An AI layer on top is optional polish.
 - **`Solver.getNextHint` re-runs all producers from scratch** on every call, and
   a full solve calls it ~53 times. That's the 1.8ms/puzzle figure — fine for
   now, worth knowing before optimizing.
+- **Nothing is published to npm yet, deliberately.** `NPM_TOKEN` is unset, so
+  the release workflow opens version PRs but does not publish. Set the secret
+  when you're ready for a first release; the auth check and publish step
+  re-enable themselves. Note that the changesets action falls back to npm OIDC
+  trusted publishing when no token is present, so `publish` is gated explicitly
+  rather than left on.
 - **`PLAN.md` describes CI jobs that don't exist** (`coverage`, nyc, Codecov)
   and an `apps/showcase` that was never created. Treat it as historical intent,
   not a description of the repo.
