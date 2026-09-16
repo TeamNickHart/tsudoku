@@ -34,6 +34,6 @@ export default defineConfig({
         },
       ],
     },
-    socialLinks: [{ icon: 'github', link: 'https://github.com/tsudoku/tsudoku' }],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/TeamNickHart/tsudoku' }],
   },
 });
