@@ -15,6 +15,11 @@
     "format:fix": "prettier --write .",
     "test": "turbo test",
     "benchmark": "turbo benchmark",
+    "benchmark:quick": "tsx benchmarks/runner.ts --phases=1",
+    "benchmark:full": "tsx benchmarks/runner.ts",
+    "corpus:generate": "bash tools/se-reference/generate-corpus.sh",
+    "puzzle:intake": "bash tools/se-reference/intake.sh",
+    "puzzle:build-corpus": "bash tools/se-reference/build-corpus.sh",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -1,0 +1,3 @@
+[submodule "tools/se-reference/SudokuExplainer-source"]
+	path = tools/se-reference/SudokuExplainer-source
+	url = https://github.com/1to9only/SudokuExplainer.git

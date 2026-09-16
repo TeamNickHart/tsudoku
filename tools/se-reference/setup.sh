@@ -3,17 +3,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JAR_PATH="$SCRIPT_DIR/SudokuExplainer.jar"
-JAR_URL="https://github.com/1to9only/SudokuExplainer/raw/master/SudokuExplainer.jar"
+JAR_URL="https://github.com/1to9only/SudokuExplainer/releases/download/2022.3.24/SudokuExplainer.jar"
 
 # --- Check Java ---
 if ! command -v java &>/dev/null; then
   echo "ERROR: Java is not installed."
   echo ""
   echo "Install OpenJDK 11+ for your platform:"
-  echo "  macOS:        brew install openjdk"
+  echo "  macOS:         brew install openjdk"
   echo "  Debian/Ubuntu: sudo apt-get install openjdk-17-jre-headless"
-  echo "  Windows:      winget install Microsoft.OpenJDK.17"
-  echo "                or download from https://adoptium.net"
+  echo "  Windows:       winget install Microsoft.OpenJDK.17"
+  echo "                 or download from https://adoptium.net"
+  echo ""
+  echo "macOS note: Homebrew OpenJDK may not be on your PATH. Add this to your shell profile:"
+  echo '  export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"'
   exit 1
 fi
 
@@ -24,7 +27,8 @@ echo "Found Java: $JAVA_VERSION"
 if [ -f "$JAR_PATH" ]; then
   echo "SudokuExplainer.jar already exists at $JAR_PATH"
 else
-  echo "Downloading SudokuExplainer.jar..."
+  echo "Downloading SudokuExplainer.jar from GitHub releases (2022.3.24)..."
+
   if command -v curl &>/dev/null; then
     curl -fSL -o "$JAR_PATH" "$JAR_URL"
   elif command -v wget &>/dev/null; then
@@ -32,10 +36,11 @@ else
   else
     echo "ERROR: Neither curl nor wget found. Please download manually:"
     echo "  $JAR_URL"
-    echo "  Place the JAR at: $JAR_PATH"
+    echo "  Place at: $JAR_PATH"
     exit 1
   fi
-  echo "Downloaded SudokuExplainer.jar"
+
+  echo "Downloaded SudokuExplainer.jar to $JAR_PATH"
 fi
 
 # --- Smoke test ---
@@ -50,6 +55,9 @@ if java -cp "$JAR_PATH" diuf.sudoku.test.serate --input="$TMPFILE" --output=- --
 else
   echo "WARNING: Smoke test failed. The JAR may be incompatible with your Java version."
   echo "Try OpenJDK 11 or 17."
+  echo ""
+  echo "macOS users: ensure Homebrew Java is on your PATH:"
+  echo '  export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"'
 fi
 
 rm -f "$TMPFILE"

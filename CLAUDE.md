@@ -22,6 +22,29 @@ Node.js, browsers, and React Native (Hermes). Zero JVM dependency.
 
 ---
 
+## Cardinal Rule: Mirror the SE Reference Implementation
+
+TSudoku is a **line-by-line port** of SudokuExplainer to TypeScript. Every
+technique must mirror the corresponding Java class — same structure, same
+iteration order, same logic, same control flow. Use TypeScript syntax and
+idioms, but the code should read as a direct translation of the Java source.
+
+**Porting process:**
+
+1. Read the SE Java source (`tools/se-reference/SudokuExplainer-source/`)
+2. Port it line by line into TypeScript
+3. If a Java concept doesn't map cleanly to TypeScript, **stop and discuss**
+4. If you spot an opportunity to improve the algorithm, **don't change it** —
+   instead add a note to `notes/improvements.md` for later discussion
+5. Undiscussed divergences from SE's code are bugs
+
+**File structure should mirror SE's class structure** where practical. A single
+SE Java class may map to a single TS file. If SE combines techniques in one
+class (e.g., `Locking.java` handles both Pointing and Claiming), the TS port
+should do the same unless there's a discussed reason to split.
+
+---
+
 ## Current Phase Status
 
 - [x] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton) ✅
@@ -392,8 +415,18 @@ a corpus of puzzles with known SE ratings. It lives in `benchmarks/`.
 **The benchmark is a CI gate.** If agreement drops below 95% on any implemented
 technique, CI fails. This is the project's credibility guarantee.
 
-Currently the benchmark harness exists but reports no results (no techniques
-implemented, no corpus data).
+### Corpus Target
+
+**~100 puzzles per technique**, grouped by the exact SE technique required (the
+hardest technique in the solve path). This serves both benchmark validation and
+as pre-generated puzzle content for the mobile app.
+
+When implementing a new technique, build the corpus for it before marking it
+done. Don't move on to the next technique without corpus coverage.
+
+**Difficulty levels for the app** use technique-based grouping (Option A):
+each unique SE technique/rating is its own level. This supports a teaching-
+oriented UX where users progress through techniques.
 
 ---
 
@@ -463,6 +496,7 @@ See `.github/workflows/release.yml` for the full automation.
 - **Do not hardcode difficulty ratings inline.** Use `TECHNIQUE_DIFFICULTY` map.
 - **Do not add dependencies to `@tsudoku/core` without discussion.** Core must stay lean.
 - **Do not present planned features as implemented** in docs, README, or this file.
+- **Do not diverge from the SE reference implementation.** Port line by line. If a Java concept doesn't map to TS, stop and discuss. If you see an improvement, note it in `notes/improvements.md` — don't change the algorithm. See "Cardinal Rule" section above.
 
 ---
 
