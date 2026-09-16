@@ -4,3 +4,6 @@ coverage
 .turbo
 pnpm-lock.yaml
 CHANGELOG.md
+
+# Vendored SE Java reference (git submodule) — never reformat upstream source
+tools/se-reference/SudokuExplainer-source
