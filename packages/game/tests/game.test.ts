@@ -6,6 +6,7 @@ import {
   canUndo,
   cellView,
   createGame,
+  includedNotes,
   errorCells,
   isGiven,
   isSolved,
@@ -38,7 +39,9 @@ describe('createGame', () => {
 
   it('starts with empty marks and history', () => {
     const game = createGame(EASY);
-    expect(game.notes.every((n) => n.included.length === 0 && n.excluded.length === 0)).toBe(true);
+    expect(game.notes.every((n) => includedNotes(n).length === 0 && n.excluded.length === 0)).toBe(
+      true,
+    );
     expect(game.history).toHaveLength(0);
     expect(canUndo(game)).toBe(false);
     expect(canRedo(game)).toBe(false);
@@ -93,7 +96,7 @@ describe('notes', () => {
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'included' });
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    expect(game.notes[BLANK]!.included).toEqual([2, 4, 7]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([2, 4, 7]);
   });
 
   it('ignores a duplicate note', () => {
@@ -108,14 +111,14 @@ describe('notes', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = applyMove(game, { kind: 'removeNote', cell: BLANK, digit: 7, note: 'included' });
-    expect(game.notes[BLANK]!.included).toEqual([]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([]);
   });
 
   it('clears notes when a value is entered', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
-    expect(game.notes[BLANK]!.included).toEqual([]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([]);
   });
 
   it('refuses to note a filled cell', () => {
@@ -131,7 +134,7 @@ describe('notes', () => {
     // pencil in something impossible, and the app should let them.
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 5, note: 'included' }); // 5 is in r1c1
-    expect(game.notes[BLANK]!.included).toEqual([5]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([5]);
     expect(cellView(game, BLANK).staleNotes).toEqual([5]);
   });
 });
@@ -183,7 +186,7 @@ describe('history', () => {
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = undo(game);
-    expect(game.notes[BLANK]!.included).toEqual([4]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
   });
 
   it('does nothing when there is nothing to undo or redo', () => {
@@ -225,7 +228,7 @@ describe('progress', () => {
     game = resetGame(game);
 
     expect(game.entries[BLANK]).toBeNull();
-    expect(game.notes[3]!.included).toEqual([]);
+    expect(includedNotes(game.notes[3]!)).toEqual([]);
     expect(game.history).toHaveLength(0);
     expect(canUndo(game)).toBe(false);
   });

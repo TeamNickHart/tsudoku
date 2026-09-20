@@ -55,7 +55,18 @@ export function Cell({
   onPointerEnter,
   onActivate,
 }: CellProps): JSX.Element {
-  const { index, value, lock, notes, isError, staleNotes, isSelected, roles, noteRoles } = view;
+  const {
+    index,
+    value,
+    lock,
+    notes,
+    isError,
+    staleNotes,
+    includedNotes,
+    isSelected,
+    roles,
+    noteRoles,
+  } = view;
 
   const row = Math.floor(index / SIZE);
   const col = index % SIZE;
@@ -108,7 +119,12 @@ export function Cell({
           {value}
         </span>
       ) : (
-        <NoteGrid notes={notes} staleNotes={staleNotes} noteRoles={noteRoles} />
+        <NoteGrid
+          notes={notes}
+          included={includedNotes}
+          staleNotes={staleNotes}
+          noteRoles={noteRoles}
+        />
       )}
     </button>
   );
@@ -116,6 +132,8 @@ export function Cell({
 
 interface NoteGridProps {
   readonly notes: CellView['notes'];
+  /** Every noted digit, from either source. */
+  readonly included: readonly number[];
   readonly staleNotes: readonly number[];
   readonly noteRoles: CellView['noteRoles'];
 }
@@ -126,25 +144,29 @@ interface NoteGridProps {
  * Every digit occupies a fixed position whether or not it is noted, so notes
  * do not jump around as they are added — which matters a lot when scanning.
  */
-function NoteGrid({ notes, staleNotes, noteRoles }: NoteGridProps): JSX.Element | null {
-  const hasAny = notes.included.length > 0 || notes.excluded.length > 0;
+function NoteGrid({ notes, included, staleNotes, noteRoles }: NoteGridProps): JSX.Element | null {
+  const hasAny = included.length > 0 || notes.excluded.length > 0;
   if (!hasAny) return null;
 
   return (
     <div className="grid h-full w-full grid-cols-3 grid-rows-3 p-[6%]">
       {Array.from({ length: SIZE }, (_, i) => i + 1).map((digit) => {
-        const included = notes.included.includes(digit);
+        const isIncluded = included.includes(digit);
         const excluded = notes.excluded.includes(digit);
-        if (!included && !excluded) {
+        if (!isIncluded && !excluded) {
           return <span key={digit} aria-hidden />;
         }
 
         const isStale = staleNotes.includes(digit);
+        // Auto notes render lighter: the app maintains them, and they vanish
+        // on their own when a placement rules them out. A note the player wrote
+        // stays put and goes stale instead.
+        const isAuto = notes.auto.includes(digit);
         const roles = noteRoles[digit] ?? [];
         const roleClasses = roles.map((r) => NOTE_ROLE_STYLES[r] ?? '');
         // A digit marked both possible and impossible is a contradiction the
         // player wrote down. Show it rather than resolving it.
-        const isConflict = included && excluded;
+        const isConflict = isIncluded && excluded;
 
         return (
           <span
@@ -153,6 +175,7 @@ function NoteGrid({ notes, staleNotes, noteRoles }: NoteGridProps): JSX.Element 
               'flex items-center justify-center text-[clamp(0.45rem,1.5vmin,0.7rem)]',
               'leading-none tabular-nums',
               'text-board-note',
+              isAuto && 'opacity-60',
               excluded && 'line-through decoration-1 opacity-70',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
