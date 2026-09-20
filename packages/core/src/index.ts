@@ -28,6 +28,23 @@ export {
   candidateUnion,
 } from './candidates/bitmask.js';
 
+// Board geometry
+export {
+  SIZE,
+  BOX_WIDTH,
+  BOX_HEIGHT,
+  CELL_COUNT,
+  BOXES_PER_ROW,
+  REGION_COUNT,
+  ROW_OFFSET,
+  COL_OFFSET,
+  BOX_OFFSET,
+  rowOf,
+  colOf,
+  boxOf,
+  indexOf,
+} from './models/board.js';
+
 // Grid factory and operations
 export { createGrid, recomputeCandidates, applyHint } from './models/GridImpl.js';
 

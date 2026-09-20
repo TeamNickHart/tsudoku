@@ -1,7 +1,13 @@
-// 9-bit bitmask where bit (d-1) represents digit d as a candidate.
+// Bitmask where bit (d-1) represents digit d as a candidate.
 // 0b111111111 (511) = all digits 1–9 are candidates.
+//
+// NOTE: candidates are a JS number used with bitwise operators, which are
+// 32-bit — so this representation caps out at 32 digits. `candidateCount`
+// below is further specialised for <= 9 bits. See models/board.ts.
 
-export const FULL_CANDIDATES = 0b111111111;
+import { SIZE } from '../models/board.js';
+
+export const FULL_CANDIDATES = (1 << SIZE) - 1;
 
 export function candidateMask(digit: number): number {
   return 1 << (digit - 1);
@@ -21,7 +27,7 @@ export function removeCandidate(candidates: number, digit: number): number {
 
 export function candidateList(candidates: number): readonly number[] {
   const result: number[] = [];
-  for (let d = 1; d <= 9; d++) {
+  for (let d = 1; d <= SIZE; d++) {
     if (hasCandidate(candidates, d)) {
       result.push(d);
     }
@@ -29,6 +35,13 @@ export function candidateList(candidates: number): readonly number[] {
   return result;
 }
 
+/**
+ * Population count, specialised for a 9-bit mask.
+ *
+ * The magic constants below are only correct for masks of <= 9 bits (verified
+ * exhaustively over 0..511). Widening the board past 9 digits requires
+ * widening these too.
+ */
 export function candidateCount(candidates: number): number {
   let n = candidates;
   n = n - ((n >> 1) & 0x155);

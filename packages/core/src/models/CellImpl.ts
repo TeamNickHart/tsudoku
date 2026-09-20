@@ -1,5 +1,6 @@
 import type { Cell } from '../types/Grid.js';
 import { candidateCount, candidateList } from '../candidates/bitmask.js';
+import { boxOf, colOf, rowOf } from './board.js';
 
 export function createCell(
   index: number,
@@ -7,9 +8,9 @@ export function createCell(
   candidates: number,
   isGiven: boolean,
 ): Cell {
-  const row = Math.floor(index / 9);
-  const col = index % 9;
-  const box = Math.floor(row / 3) * 3 + Math.floor(col / 3);
+  const row = rowOf(index);
+  const col = colOf(index);
+  const box = boxOf(row, col);
   const list = candidateList(candidates);
   const count = candidateCount(candidates);
 
