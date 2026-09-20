@@ -9,7 +9,20 @@ module.exports = {
     'scope-enum': [
       1,
       'always',
-      ['core', 'cli', 'solver', 'generator', 'react-native', 'ml', 'docs', 'ci', 'benchmarks'],
+      [
+        'core',
+        'cli',
+        'solver',
+        'generator',
+        'game',
+        'web',
+        'react-native',
+        'ml',
+        'docs',
+        'ci',
+        'benchmarks',
+        'tools',
+      ],
     ],
   },
 };
