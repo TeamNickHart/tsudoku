@@ -1,8 +1,7 @@
 import { Solver } from '@tsudoku/core';
 import type { Hint } from '@tsudoku/core';
-import { applyMove } from './game.js';
-import { toGrid } from './game.js';
-import type { GameState } from './types.js';
+import { applyMove, toGrid } from './game.js';
+import type { Decoration, GameState } from './types.js';
 
 /**
  * Ask the engine what to do next on the current board.
@@ -37,4 +36,40 @@ export function applyHintAsMove(state: GameState, hint: Hint): GameState {
 /** Cells a hint wants the UI to highlight. */
 export function hintHighlights(hint: Hint): readonly number[] {
   return hint.involvedCells;
+}
+
+/**
+ * Translate a hint into decorations.
+ *
+ * This is the seam that makes hints, tutorials and player highlighting one
+ * mechanism: a tutorial step emits the same `Decoration[]` shape, so the UI
+ * needs no special case for "this highlight came from a hint".
+ */
+export function hintDecorations(hint: Hint): readonly Decoration[] {
+  const out: Decoration[] = [];
+
+  if (hint.type === 'direct') {
+    out.push({
+      target: { kind: 'cell', cell: hint.cell },
+      role: 'primary',
+      note: hint.explanation,
+    });
+  } else {
+    for (const elimination of hint.eliminations) {
+      out.push({
+        target: { kind: 'note', cell: elimination.cell, digit: elimination.digit },
+        role: 'eliminated',
+        note: hint.explanation,
+      });
+    }
+  }
+
+  const primaryCell = hint.type === 'direct' ? hint.cell : -1;
+  for (const cell of hint.involvedCells) {
+    if (cell !== primaryCell) {
+      out.push({ target: { kind: 'cell', cell }, role: 'supporting' });
+    }
+  }
+
+  return out;
 }
