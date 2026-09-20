@@ -17,7 +17,8 @@ notes, undo, ask for a hint and get the engine's real technique explanation.
 
 - **#12** — `applyHint` applies eliminations; Pointing (2.6) and Claiming (2.8)
   ported from `Locking.java`; auto-notes (`fillNotes`).
-- **#13** — drag to select, tap to toggle (stacked on #12).
+- **#13** — drag to select, tap to toggle; plus two board-rendering fixes
+  (stacked on #12).
 
 **Next up: stage 2.3 — the generator**, which Phase 2 needs for a validation
 corpus. `phase2.jsonl` is still empty, so Pointing and Claiming are registered
@@ -320,6 +321,24 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-20 (late)
+
+- **Board rendering fixed, twice.** Both were valid CSS producing wrong
+  geometry — the kind of bug a green build cannot catch.
+  1. Cells drew their grid lines as CSS borders, which sit _inside_ the
+     element's box, so a cell on a box boundary had 2px less content than its
+     neighbours. Measured a 69/70/71px spread, which pushed digits and note
+     sub-grids visibly off-grid. Replaced with overlays that take no layout
+     space; content boxes are now a single uniform value.
+  2. Even then, box boundaries rendered as _broken_ lines. Drawing rules per
+     cell meant a boundary was nine independent segments, and sub-pixel offsets
+     (279.992 vs 280 across one boundary) put them on different device pixels.
+     Grid lines are now 16 full-span elements drawn once on the board, so a
+     line is either fully drawn or not drawn at all.
+- Lesson worth keeping: measuring the DOM found both. The first board looked
+  fine in a screenshot, and the second only showed up once a real screenshot
+  was compared against expectations.
 
 ### 2026-09-20 (evening)
 
