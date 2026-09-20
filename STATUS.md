@@ -13,22 +13,27 @@
 **Stage 1 is done.** The app is playable and deployed: enter values, take
 notes, undo, ask for a hint and get the engine's real technique explanation.
 
-**Stage 2.1 and 2.2 are done** and awaiting review in two stacked PRs:
-
-- **#12** — `applyHint` applies eliminations; Pointing (2.6) and Claiming (2.8)
-  ported from `Locking.java`; auto-notes (`fillNotes`).
-- **#13** — drag to select, tap to toggle; plus two board-rendering fixes
-  (stacked on #12).
+**Stage 2.1 and 2.2 are merged.** `applyHint` applies eliminations; Pointing
+(2.6) and Claiming (2.8) are ported from `Locking.java`; auto-notes fill from
+the engine's candidates and are cleared from peers when a value is placed.
 
 **Next up: stage 2.3 — the generator**, which Phase 2 needs for a validation
 corpus. `phase2.jsonl` is still empty, so Pointing and Claiming are registered
 but not benchmark-validated (see the silent-pass problem below).
 
-**Open question, deliberately unresolved:** whether a filled cell should lock
-once entered. Options weighed: lock fully (undo is the only way back), block
-overwrite but allow erase, or leave freely editable. The tension is that
-locking fights exploration — recovering from a wrong guess would mean
-discarding correct moves made since.
+**Open questions, deliberately unresolved:**
+
+- **Analytics and a backend** (2.7). Recorded in the backlog, not designed.
+  The real decision is whether this project wants a server at all — that
+  unlocks cloud saves, leaderboards and server-side chain techniques, and it
+  also means hosting, cost and an attack surface the current static SPA does
+  not have.
+- **Whether a filled cell should lock** once entered. Options weighed: lock fully (undo is the only way back), block
+  overwrite but allow erase, or leave freely editable. The tension is that
+  locking fights exploration — recovering from a wrong guess would mean
+  discarding correct moves made since.
+
+---
 
 **Deployed:** `tsudoku-play` on Vercel (Root Directory `apps/web`). Custom
 domain `play.tsudoku.dev` deferred until tsudoku.dev moves to Cloudflare.
@@ -218,6 +223,55 @@ The model supports more than the UI exposes:
 4. Remaining Phase 2 techniques
 5. Tutor layer + first lessons
 6. Notes UX and CLI, opportunistically
+7. Analytics and invite-only access (2.7) — last, and gated on wanting a backend
+
+### 2.7 Analytics and invite-only access — **backlogged, after Phase 2 + generator**
+
+Not to be built yet. Recorded so the design decisions are not re-litigated
+later, and so nothing built in the meantime forecloses them.
+
+**What it is for**, in priority order:
+
+1. **Errors and crashes.** Useful with three players — one report is
+   actionable. Worth doing properly whenever it happens.
+2. **Product analytics.** Retention, session length, where players abandon,
+   which features get used. Needs volume to mean anything, which is the
+   argument for waiting rather than the argument against doing it.
+
+Explicitly _not_ in scope for now: instrumenting whether the teaching works, or
+calibrating human difficulty against SE ratings. Both are interesting and both
+want a schema designed around lessons that do not exist yet.
+
+**Access model.** Invite-only to start: email sign-in links, users invited by
+the maintainer are opted in to data collection as a condition of the
+invitation. That avoids a consent dialog nobody reads while still being
+honest, and it means the small early player base produces usable data. A public
+opt-in comes later, and should show people exactly what is collected — that
+transparency screen is a feature in its own right, not a checkbox.
+
+**Identity.** Auth identity and analytics identity are **separate IDs with no
+stored mapping**. Events carry a random on-device ID; the server never links it
+to an account. This matters for the wording as much as the data: once a server
+knows an email _and_ holds that person's event stream, "anonymous" is only true
+if the join is impossible by construction. Keeping them unlinked means the
+claim survives someone reading the source, which a project courting
+contributors should care about.
+
+**The architectural consequence, stated plainly.** The app is currently a
+static SPA on a CDN — no server, no database, no secrets. Magic-link sign-in
+needs all four: somewhere to store users and sessions, an email provider, and a
+session mechanism. That is the largest structural change on this roadmap,
+larger than the generator, and it is the real reason this is backlogged rather
+than the analytics itself.
+
+Leaning Upstash for session storage (serverless, HTTP, key TTL is session
+semantics). Note QStash is Upstash's _message queue_, not a session store —
+Upstash Redis is the right product there. Tinybird is a reasonable fit for the
+event sink if this grows into real analytical querying; for errors alone it is
+heavier than needed.
+
+**Sequencing.** After Phase 2 and the generator. Instrumenting a game whose
+shape is still changing means designing a schema twice.
 
 ### Explicitly not now
 
