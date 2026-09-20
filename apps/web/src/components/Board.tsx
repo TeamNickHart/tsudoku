@@ -65,6 +65,8 @@ interface BoardProps {
   readonly onToggleSelection: (cell: number) => void;
   /** Keyboard activation. */
   readonly onActivate: (index: number, additive: boolean) => void;
+  /** False in value mode, where selecting a run has no meaning. */
+  readonly multiSelect: boolean;
 }
 
 /**
@@ -80,11 +82,13 @@ export function Board({
   onReplaceSelection,
   onToggleSelection,
   onActivate,
+  multiSelect,
 }: BoardProps): JSX.Element {
   const { cellProps } = useDragSelect({
     onReplace: onReplaceSelection,
     onToggle: onToggleSelection,
     selected,
+    multiSelect,
   });
 
   const focus = selected.length === 1 ? selected[0] : undefined;

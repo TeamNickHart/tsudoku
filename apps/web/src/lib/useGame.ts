@@ -38,8 +38,8 @@ export type InputMode = 'value' | 'note-included' | 'note-excluded';
 
 type Action =
   | { type: 'newGame'; puzzle: string }
-  | { type: 'select'; cell: number; additive: boolean }
-  | { type: 'setSelection'; cells: readonly number[] }
+  | { type: 'select'; cell: number; additive: boolean; mode: InputMode }
+  | { type: 'setSelection'; cells: readonly number[]; mode: InputMode }
   | { type: 'clearSelection' }
   | { type: 'digit'; digit: number; mode: InputMode }
   | { type: 'erase' }
@@ -55,12 +55,24 @@ function reducer(state: GameState, action: Action): GameState {
     case 'newGame':
       return createGame(action.puzzle);
 
+    // Value mode is single-select: you place one digit in one cell, so a
+    // multi-selection has no meaning there and makes it far too easy to write
+    // the same digit across a row by accident. Notes and strikes are the modes
+    // where selecting a run is the whole point.
     case 'select':
+      if (action.mode === 'value') {
+        return selectCell(state, action.cell);
+      }
       return action.additive
         ? toggleCellSelection(state, action.cell)
         : selectCell(state, action.cell);
 
     case 'setSelection':
+      if (action.mode === 'value') {
+        // A drag in value mode selects only where it ended.
+        const last = action.cells[action.cells.length - 1];
+        return last === undefined ? state : selectCell(state, last);
+      }
       return setSelection(state, action.cells);
 
     case 'clearSelection':
@@ -70,12 +82,12 @@ function reducer(state: GameState, action: Action): GameState {
       if (state.selected.length === 0) return state;
       const cleared = clearDecorations(state);
       if (action.mode === 'value') {
-        // Entering a value is single-cell by nature; apply to each selected.
-        return applyToSelection(cleared, (cell) => ({
-          kind: 'setValue',
-          cell,
-          digit: action.digit,
-        }));
+        // Single cell by construction — value mode never builds a
+        // multi-selection. Guarded anyway so a stale selection from another
+        // mode cannot write a digit across several cells.
+        const cell = state.selected[state.selected.length - 1];
+        if (cell === undefined) return state;
+        return applyMove(cleared, { kind: 'setValue', cell, digit: action.digit });
       }
       const note: NoteKind = action.mode === 'note-included' ? 'included' : 'excluded';
       return applyToSelection(cleared, (cell) => ({
@@ -139,6 +151,23 @@ export function useGame(initialPuzzle: string) {
     dispatch({ type: 'clearHint' });
   }, []);
 
+  /**
+   * Switch input mode, collapsing a multi-selection when entering value mode.
+   *
+   * Without this, selecting a run in note mode and then switching to value
+   * would leave a selection that value mode cannot meaningfully act on.
+   */
+  const changeMode = useCallback(
+    (next: InputMode) => {
+      setMode(next);
+      if (next === 'value' && state.selected.length > 1) {
+        const last = state.selected[state.selected.length - 1]!;
+        dispatch({ type: 'select', cell: last, additive: false, mode: next });
+      }
+    },
+    [state.selected],
+  );
+
   const newGame = useCallback((puzzle: string) => {
     setHint(null);
     setMode('value');
@@ -153,7 +182,7 @@ export function useGame(initialPuzzle: string) {
     solved,
     remaining,
     mode,
-    setMode,
+    setMode: changeMode,
     hint,
     requestHint,
     dismissHint,

@@ -23,23 +23,23 @@ export function App(): JSX.Element {
 
   const activateCell = useCallback(
     (index: number, additive: boolean) => {
-      game.dispatch({ type: 'select', cell: index, additive });
+      game.dispatch({ type: 'select', cell: index, additive, mode });
     },
-    [game],
+    [game, mode],
   );
 
   const replaceSelection = useCallback(
     (cells: readonly number[]) => {
-      game.dispatch({ type: 'setSelection', cells });
+      game.dispatch({ type: 'setSelection', cells, mode });
     },
-    [game],
+    [game, mode],
   );
 
   const toggleSelection = useCallback(
     (cell: number) => {
-      game.dispatch({ type: 'select', cell, additive: true });
+      game.dispatch({ type: 'select', cell, additive: true, mode });
     },
-    [game],
+    [game, mode],
   );
 
   const enterDigit = useCallback(
@@ -87,7 +87,7 @@ export function App(): JSX.Element {
       const move = (delta: number): void => {
         e.preventDefault();
         const next = Math.max(0, Math.min(80, focus + delta));
-        game.dispatch({ type: 'select', cell: next, additive: false });
+        game.dispatch({ type: 'select', cell: next, additive: false, mode });
       };
       if (e.key === 'ArrowUp') move(-SIZE);
       if (e.key === 'ArrowDown') move(SIZE);
@@ -97,7 +97,7 @@ export function App(): JSX.Element {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [game, enterDigit, erase, setMode, state.selected]);
+  }, [game, enterDigit, erase, setMode, state.selected, mode]);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-6">
@@ -114,6 +114,7 @@ export function App(): JSX.Element {
         onReplaceSelection={replaceSelection}
         onToggleSelection={toggleSelection}
         onActivate={activateCell}
+        multiSelect={mode !== 'value'}
       />
 
       <div className="flex items-center justify-between text-sm">
