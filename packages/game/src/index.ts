@@ -4,6 +4,8 @@
 // the web and React Native apps two renderings of one game rather than two
 // implementations of it.
 
+export { includedNotes } from './types.js';
+
 export type {
   CellLock,
   CellNotes,

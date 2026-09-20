@@ -1,6 +1,7 @@
 import { CELL_COUNT, SIZE, boxOf, colOf, createGrid, rowOf } from '@tsudoku/core';
 import type { Grid } from '@tsudoku/core';
 import { solutionString } from '@tsudoku/solver';
+import { includedNotes } from './types.js';
 import type {
   CellNotes,
   CellValue,
@@ -27,7 +28,7 @@ export class InvalidPuzzleError extends Error {
  * assertions below are safe for that reason and are not repeated per line.
  */
 
-const EMPTY_NOTES: CellNotes = { included: [], excluded: [], auto: [] };
+const EMPTY_NOTES: CellNotes = { auto: [], manual: [], excluded: [] };
 
 /**
  * Cells sharing a row, column or box with the given cell.
@@ -108,16 +109,42 @@ export function isGiven(state: GameState, cell: number): boolean {
   return !isBlank(state.puzzle[cell]!);
 }
 
-function withNote(notes: CellNotes, kind: NoteKind, digits: readonly number[]): CellNotes {
+function sorted(digits: Iterable<number>): readonly number[] {
+  return [...new Set(digits)].sort((a, b) => a - b);
+}
+
+/**
+ * Add or remove a single digit from one of a cell's note sets.
+ *
+ * Deliberately takes one digit rather than a whole replacement set. An earlier
+ * version passed the new included list and treated every digit in it as
+ * manual, so toggling one note off silently took ownership of every *other*
+ * note in the cell.
+ *
+ * Writing an included note by hand moves that digit into `manual` and out of
+ * `auto`: the player has taken ownership, so the app stops maintaining it.
+ * Removing one clears it from both, since it is gone either way.
+ */
+function withNoteDigit(
+  notes: CellNotes,
+  kind: NoteKind,
+  digit: number,
+  present: boolean,
+): CellNotes {
   if (kind === 'excluded') {
-    return { included: notes.included, excluded: digits, auto: notes.auto };
+    return {
+      auto: notes.auto,
+      manual: notes.manual,
+      excluded: present
+        ? sorted([...notes.excluded, digit])
+        : notes.excluded.filter((d) => d !== digit),
+    };
   }
-  // Touching an included note by hand makes it the player's, so it drops out
-  // of `auto` and stops being eligible for silent auto-clearing.
+
   return {
-    included: digits,
+    auto: notes.auto.filter((d) => d !== digit),
+    manual: present ? sorted([...notes.manual, digit]) : notes.manual.filter((d) => d !== digit),
     excluded: notes.excluded,
-    auto: notes.auto.filter((d) => digits.includes(d)),
   };
 }
 
@@ -150,9 +177,9 @@ function reduce(state: GameState, move: Move): GameState {
         const peerNotes = notes[peer]!;
         if (!peerNotes.auto.includes(move.digit)) continue;
         notes[peer] = {
-          included: peerNotes.included.filter((d) => d !== move.digit),
-          excluded: peerNotes.excluded,
           auto: peerNotes.auto.filter((d) => d !== move.digit),
+          manual: peerNotes.manual,
+          excluded: peerNotes.excluded,
         };
       }
 
@@ -169,53 +196,50 @@ function reduce(state: GameState, move: Move): GameState {
       // A note on a filled cell is meaningless.
       if (state.entries[move.cell] !== null) return state;
       const cellNotes = state.notes[move.cell]!;
-      const current = move.note === 'included' ? cellNotes.included : cellNotes.excluded;
+      const current = move.note === 'included' ? includedNotes(cellNotes) : cellNotes.excluded;
 
       if (current.includes(move.digit)) {
         if (move.kind === 'addNote') return state;
         // toggleNote on an existing digit removes it.
         const notes = [...state.notes];
-        notes[move.cell] = withNote(
-          cellNotes,
-          move.note,
-          current.filter((d) => d !== move.digit),
-        );
+        notes[move.cell] = withNoteDigit(cellNotes, move.note, move.digit, false);
         return { ...state, notes };
       }
 
       const notes = [...state.notes];
-      notes[move.cell] = withNote(
-        cellNotes,
-        move.note,
-        [...current, move.digit].sort((a, b) => a - b),
-      );
+      notes[move.cell] = withNoteDigit(cellNotes, move.note, move.digit, true);
       return { ...state, notes };
     }
     case 'removeNote': {
       const cellNotes = state.notes[move.cell]!;
-      const current = move.note === 'included' ? cellNotes.included : cellNotes.excluded;
+      const current = move.note === 'included' ? includedNotes(cellNotes) : cellNotes.excluded;
       if (!current.includes(move.digit)) return state;
       const notes = [...state.notes];
-      notes[move.cell] = withNote(
-        cellNotes,
-        move.note,
-        current.filter((d) => d !== move.digit),
-      );
+      notes[move.cell] = withNoteDigit(cellNotes, move.note, move.digit, false);
       return { ...state, notes };
     }
     case 'setNotes': {
       if (state.entries[move.cell] !== null) return state;
       const cellNotes = state.notes[move.cell]!;
-      const sorted = [...move.digits].sort((a, b) => a - b);
       const notes = [...state.notes];
-      // These came from the engine, so they are auto notes — eligible for
-      // silent removal when a later placement invalidates them.
-      notes[move.cell] = { included: sorted, excluded: cellNotes.excluded, auto: sorted };
+      // Engine-derived, so they land in `auto`. Digits the player already noted
+      // by hand are skipped — manual wins, and the sets stay disjoint.
+      notes[move.cell] = {
+        auto: sorted(move.digits.filter((d) => !cellNotes.manual.includes(d))),
+        manual: cellNotes.manual,
+        excluded: cellNotes.excluded,
+      };
       return { ...state, notes };
     }
     case 'clearNotes': {
       const cellNotes = state.notes[move.cell]!;
-      if (cellNotes.included.length === 0 && cellNotes.excluded.length === 0) return state;
+      if (
+        cellNotes.auto.length === 0 &&
+        cellNotes.manual.length === 0 &&
+        cellNotes.excluded.length === 0
+      ) {
+        return state;
+      }
       const notes = [...state.notes];
       notes[move.cell] = EMPTY_NOTES;
       return { ...state, notes };
@@ -457,11 +481,12 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
   const notes = state.notes[index]!;
   const isError = value !== null && String(value) !== state.solution[index];
 
+  const included = includedNotes(notes);
   let staleNotes: readonly number[] = [];
-  if (value === null && notes.included.length > 0) {
+  if (value === null && included.length > 0) {
     const derived = grid ?? toGrid(state);
     const cell = derived.getCellByIndex(index);
-    staleNotes = notes.included.filter((d) => !cell.candidateList.includes(d));
+    staleNotes = included.filter((d) => !cell.candidateList.includes(d));
   }
 
   const roles: DecorationRole[] = [];
@@ -482,7 +507,7 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
     notes,
     isError,
     staleNotes,
-    autoNotes: notes.auto,
+    includedNotes: included,
     isSelected: state.selected.includes(index),
     roles,
     noteRoles,

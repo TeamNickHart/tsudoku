@@ -46,24 +46,39 @@ export type CellLock = 'given' | 'editable';
  * should show it rather than silently resolving it — being able to see your own
  * mistake is the teaching mechanic.
  */
+/**
+ * A player's annotations on one cell.
+ *
+ * Three **disjoint** sets. There is deliberately no subset relationship
+ * between them: an earlier version made `auto` a subset of the included
+ * notes, which meant every mutation had to filter one array to keep it
+ * consistent with another — an invariant the type could not enforce.
+ *
+ * - `auto` — derived by Auto-notes from the engine's candidates. The app
+ *   maintains these: placing a digit silently removes it from the auto notes
+ *   of every peer, because that is bookkeeping the app produced.
+ * - `manual` — written by the player. The app never removes these. When a
+ *   placement makes one impossible it is shown *stale* instead, because
+ *   noticing that your own reasoning has been overtaken is the teaching
+ *   moment.
+ * - `excluded` — strikes. Always the player's, by definition: nothing
+ *   generates them automatically today.
+ *
+ * `manual` wins if a digit would land in both: auto-fill skips digits the
+ * player has already noted, and noting a digit by hand removes it from `auto`.
+ */
 export interface CellNotes {
-  /** Digits the player thinks are possible. Sorted ascending. */
-  readonly included: readonly number[];
+  /** Engine-derived possibilities, maintained by the app. Sorted ascending. */
+  readonly auto: readonly number[];
+  /** Possibilities the player wrote. Never auto-removed. Sorted ascending. */
+  readonly manual: readonly number[];
   /** Digits the player has ruled out. Sorted ascending. Rendered struck-through. */
   readonly excluded: readonly number[];
-  /**
-   * Which of `included` came from Auto-notes rather than from the player.
-   *
-   * The distinction drives auto-clearing. When a value is placed, an auto
-   * note for that digit in a peer cell is removed silently — it was derived
-   * bookkeeping and the placement made it obsolete. A note the player wrote
-   * themselves is kept and shown stale instead, because noticing that your own
-   * reasoning has been overtaken is the teaching moment.
-   *
-   * Per digit, not per cell: the same cell can hold auto notes and hand-written
-   * ones side by side. Always a subset of `included`.
-   */
-  readonly auto: readonly number[];
+}
+
+/** Every digit noted as possible in a cell, from either source, sorted. */
+export function includedNotes(notes: CellNotes): readonly number[] {
+  return [...new Set([...notes.auto, ...notes.manual])].sort((a, b) => a - b);
 }
 
 /** Which note set a note action targets. */
@@ -205,14 +220,8 @@ export interface CellView {
   readonly isError: boolean;
   /** Included notes that are no longer possible given the current board. */
   readonly staleNotes: readonly number[];
-  /**
-   * Included notes that came from Auto-notes rather than the player.
-   *
-   * Rendered slightly lighter, so it is visible which notes the app maintains
-   * for you and which are your own — they behave differently when a value is
-   * placed, and identical-looking notes behaving differently reads as a bug.
-   */
-  readonly autoNotes: readonly number[];
+  /** Every digit noted as possible, from either source. Sorted. */
+  readonly includedNotes: readonly number[];
   /** True when this cell is in the current selection. */
   readonly isSelected: boolean;
   /** Roles decorating the cell as a whole. */
