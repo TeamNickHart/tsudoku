@@ -26,6 +26,11 @@ Phase 1 is **complete and merged**, at **607/607 (100%) agreement with
 SudokuExplainer**. The engine correctly identifies and rates every direct
 technique in the SE 1.0–2.5 band.
 
+> **Parity is measured against SE commit `b1f9ed4` (2025-01-22)** — the pinned
+> reference in `tools/se-reference/PINNED_COMMIT`. Run `pnpm se:check` to see
+> whether upstream has moved. SE is effectively dormant (21 commits since 2006;
+> none touching `solver/rules` since January 2023), so this should stay stable.
+
 Everything downstream of `@tsudoku/core` is an empty stub.
 
 | Package                 | State         | Notes                                                           |

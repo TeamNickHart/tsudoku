@@ -33,6 +33,28 @@ This will:
 
 The JAR is git-ignored and must be downloaded locally by each contributor.
 
+## Checking for upstream changes
+
+TSudoku's techniques are line-by-line ports, so "100% SE parity" is a claim
+about a **specific** SE commit. The reference is pinned in `PINNED_COMMIT`.
+
+```bash
+pnpm se:check
+```
+
+Exits 0 when up to date, 1 when upstream has new commits — in which case it
+lists them and highlights any changes under `diuf/sudoku/solver/rules`, which
+are the ones that can affect parity.
+
+If upstream has moved, **read the diff by hand**. Don't port changes
+mechanically: deliberate translation is the point of the Cardinal Rule.
+
+For context on how often to expect this: SE has 21 commits since 2006 (16 of
+them the 2022 import burst), and nothing under `solver/rules` has changed since
+January 2023. The rules are effectively frozen — SE's ratings are a community
+standard, so changing them would invalidate two decades of published puzzle
+ratings.
+
 ## Rating puzzles
 
 ```bash
