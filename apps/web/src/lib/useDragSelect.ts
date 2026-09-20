@@ -44,6 +44,12 @@ interface DragSelectOptions {
   readonly onToggle: (cell: number) => void;
   /** The current selection, needed to decide replace-vs-extend at drag start. */
   readonly selected: readonly number[];
+  /**
+   * When false, dragging does not paint — the gesture degrades to a plain tap
+   * on the cell where the pointer went down. Used for value mode, where a
+   * multi-selection has no meaning.
+   */
+  readonly multiSelect: boolean;
 }
 
 interface DragSelectResult {
@@ -60,6 +66,7 @@ export function useDragSelect({
   onReplace,
   onToggle,
   selected,
+  multiSelect,
 }: DragSelectOptions): DragSelectResult {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -86,6 +93,7 @@ export function useDragSelect({
 
   const paintCell = useCallback(
     (index: number) => {
+      if (!multiSelect) return;
       if (startCell.current === null) return;
       if (painted.current.has(index)) return;
 
@@ -93,7 +101,7 @@ export function useDragSelect({
       painted.current.add(index);
       onReplace([...painted.current]);
     },
-    [onReplace],
+    [onReplace, multiSelect],
   );
 
   /**
@@ -142,14 +150,14 @@ export function useDragSelect({
       movedToAnotherCell.current = false;
 
       // Starting on a selected cell extends; starting elsewhere replaces.
-      const extending = selected.includes(index);
+      const extending = multiSelect && selected.includes(index);
       painted.current = new Set(extending ? selected : []);
       painted.current.add(index);
 
       attachDragListeners();
       setIsDragging(true);
     },
-    [selected, attachDragListeners],
+    [selected, attachDragListeners, multiSelect],
   );
 
   // Kept for mouse, where it fires naturally. Touch relies on the pointermove
