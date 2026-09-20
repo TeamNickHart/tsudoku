@@ -71,13 +71,21 @@ jobs:
         if: env.HAS_NPM_TOKEN != 'true'
         run: |
           echo "::notice::NPM_TOKEN is not set — skipping npm auth validation."
-          echo "::notice::Version PRs still work; publishing to npm will not."
+          echo "::notice::Version PRs still work; nothing will be published to npm."
 
+      # `publish` is set only when NPM_TOKEN is configured. Without it the action
+      # still opens/updates the version PR, but makes no publish attempt.
+      #
+      # This matters: the action falls back to npm OIDC trusted publishing when
+      # no NPM_TOKEN is present (`id-token: write` is granted above), so leaving
+      # `publish` unconditionally set means every push to main tries to publish
+      # to npm. Publishing is irreversible and public — it should happen only
+      # when deliberately configured.
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: pnpm changeset publish
+          publish: ${{ env.HAS_NPM_TOKEN == 'true' && 'pnpm changeset publish' || '' }}
           version: pnpm changeset version
           commit: 'chore: version packages'
           title: 'chore: version packages'
