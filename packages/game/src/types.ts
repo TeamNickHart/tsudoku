@@ -10,18 +10,23 @@
  * saves tiny, undo cheap, and lets state cross the React Native bridge or land
  * in `localStorage` / `AsyncStorage` with no special handling.
  *
- * **2. Pencil marks are not candidates.** The engine's `candidates` bitmask is
- * *truth* — what is actually still possible. A player's pencil marks are their
- * own notes, which may be incomplete or flat-out wrong, and that is the point:
- * a teaching app has to be able to show you that your marks disagree with
+ * **2. Notes are not candidates.** The engine's `candidates` bitmask is
+ * *truth* — what is actually still possible. A player's notes are their own
+ * reasoning, which may be incomplete or flat-out wrong, and that is the point:
+ * a teaching app has to be able to show you where your notes disagree with
  * reality. They are separate fields and must stay that way.
  *
- * **3. Everything here is plain data.** No classes, no methods, no framework
+ * **3. Decorations describe meaning, not appearance.** A decoration says
+ * "this cell is the subject of a hint" or "this note was eliminated", never
+ * "this cell is #ff0000". The UI decides what each role looks like, which is
+ * what lets web and React Native share one model and lets themes work at all.
+ *
+ * **4. Everything here is plain data.** No classes, no methods, no framework
  * imports. This package must never import React — that is what makes the
  * React Native port a re-render rather than a rewrite.
  *
- * On representation: marks use `number[]` rather than a bitmask deliberately.
- * The engine's bitmask is verified and stays; player marks are read constantly
+ * On representation: notes use `number[]` rather than a bitmask deliberately.
+ * The engine's bitmask is verified and stays; player notes are read constantly
  * in devtools while building UI, so legibility wins until there is a measured
  * reason to change. The arrays are kept sorted so equality checks are cheap.
  */
@@ -33,15 +38,90 @@ export type CellValue = number | null;
 export type CellLock = 'given' | 'editable';
 
 /**
+ * A player's annotations on one cell.
+ *
+ * `included` and `excluded` are independent on purpose. A player may pencil in
+ * "could be 3 or 7" while separately crossing out "definitely not 1". A digit
+ * appearing in both is a contradiction the player has written down, and the UI
+ * should show it rather than silently resolving it — being able to see your own
+ * mistake is the teaching mechanic.
+ */
+export interface CellNotes {
+  /** Digits the player thinks are possible. Sorted ascending. */
+  readonly included: readonly number[];
+  /** Digits the player has ruled out. Sorted ascending. Rendered struck-through. */
+  readonly excluded: readonly number[];
+}
+
+/** Which note set a note action targets. */
+export type NoteKind = 'included' | 'excluded';
+
+/**
  * A single player action, stored so history can be replayed from the givens
  * rather than by snapshotting whole grids.
  */
 export type Move =
   | { readonly kind: 'setValue'; readonly cell: number; readonly digit: number }
   | { readonly kind: 'clearValue'; readonly cell: number }
-  | { readonly kind: 'addMark'; readonly cell: number; readonly digit: number }
-  | { readonly kind: 'removeMark'; readonly cell: number; readonly digit: number }
-  | { readonly kind: 'clearMarks'; readonly cell: number };
+  | {
+      readonly kind: 'addNote';
+      readonly cell: number;
+      readonly digit: number;
+      readonly note: NoteKind;
+    }
+  | {
+      readonly kind: 'removeNote';
+      readonly cell: number;
+      readonly digit: number;
+      readonly note: NoteKind;
+    }
+  | {
+      readonly kind: 'toggleNote';
+      readonly cell: number;
+      readonly digit: number;
+      readonly note: NoteKind;
+    }
+  | { readonly kind: 'clearNotes'; readonly cell: number };
+
+/**
+ * What a decoration points at: a whole cell, or one digit within a cell's
+ * note grid.
+ */
+export type DecorationTarget =
+  | { readonly kind: 'cell'; readonly cell: number }
+  | { readonly kind: 'note'; readonly cell: number; readonly digit: number };
+
+/**
+ * Why something is decorated — semantic, never visual.
+ *
+ * The UI maps these to colors, weights, strikethroughs and outlines. Keeping
+ * them semantic means a tutorial, a hint, the error checker and a player's own
+ * highlighting all drive the same mechanism, and a theme can restyle every one
+ * of them without touching game logic.
+ */
+export type DecorationRole =
+  /** The cell or note a hint is about to act on. */
+  | 'primary'
+  /** Cells or notes that explain why the primary conclusion holds. */
+  | 'supporting'
+  /** A note this technique rules out. Typically drawn struck-through. */
+  | 'eliminated'
+  /** A conflict: an entry that disagrees with the solution. */
+  | 'error'
+  /** A note that disagrees with the engine's candidates. */
+  | 'stale'
+  /** Player-driven highlighting. The index distinguishes colors. */
+  | 'highlight-1'
+  | 'highlight-2'
+  | 'highlight-3';
+
+/** One piece of presentation meaning attached to a target. */
+export interface Decoration {
+  readonly target: DecorationTarget;
+  readonly role: DecorationRole;
+  /** Optional text for a tooltip or tutorial caption. */
+  readonly note?: string;
+}
 
 /**
  * The complete state of a game in progress.
@@ -62,8 +142,8 @@ export interface GameState {
    */
   readonly entries: readonly CellValue[];
 
-  /** Player pencil marks per cell, kept sorted ascending. */
-  readonly marks: readonly (readonly number[])[];
+  /** Player annotations per cell. */
+  readonly notes: readonly CellNotes[];
 
   /** Every move made, oldest first. Truncated when a new move follows an undo. */
   readonly history: readonly Move[];
@@ -74,18 +154,36 @@ export interface GameState {
    */
   readonly historyIndex: number;
 
-  /** Currently selected cell, or null. UI state, but it belongs to the game. */
-  readonly selected: number | null;
+  /**
+   * Currently selected cells, in selection order.
+   *
+   * An array rather than a single index because annotating several cells at
+   * once is core to how people actually take notes. Single selection is just
+   * the one-element case.
+   */
+  readonly selected: readonly number[];
+
+  /**
+   * Active decorations. Not part of history — decorations are presentation,
+   * and undoing a move should not undo a tutorial's highlighting.
+   */
+  readonly decorations: readonly Decoration[];
 }
 
-/** A cell's status for rendering. Derived — never stored. */
+/** Everything the UI needs to render one cell. Derived — never stored. */
 export interface CellView {
   readonly index: number;
   readonly value: CellValue;
   readonly lock: CellLock;
-  readonly marks: readonly number[];
+  readonly notes: CellNotes;
   /** True when the entered value disagrees with the solution. */
   readonly isError: boolean;
-  /** Marks that are no longer possible given the current board. */
-  readonly staleMarks: readonly number[];
+  /** Included notes that are no longer possible given the current board. */
+  readonly staleNotes: readonly number[];
+  /** True when this cell is in the current selection. */
+  readonly isSelected: boolean;
+  /** Roles decorating the cell as a whole. */
+  readonly roles: readonly DecorationRole[];
+  /** Roles decorating individual digits, keyed by digit. */
+  readonly noteRoles: Readonly<Record<number, readonly DecorationRole[]>>;
 }

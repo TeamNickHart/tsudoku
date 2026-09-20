@@ -38,7 +38,7 @@ describe('createGame', () => {
 
   it('starts with empty marks and history', () => {
     const game = createGame(EASY);
-    expect(game.marks.every((m) => m.length === 0)).toBe(true);
+    expect(game.notes.every((n) => n.included.length === 0 && n.excluded.length === 0)).toBe(true);
     expect(game.history).toHaveLength(0);
     expect(canUndo(game)).toBe(false);
     expect(canRedo(game)).toBe(false);
@@ -87,52 +87,52 @@ describe('entering values', () => {
   });
 });
 
-describe('pencil marks', () => {
-  it('adds marks and keeps them sorted', () => {
+describe('notes', () => {
+  it('adds notes and keeps them sorted', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 2 });
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 4 });
-    expect(game.marks[BLANK]).toEqual([2, 4, 7]);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
+    expect(game.notes[BLANK]!.included).toEqual([2, 4, 7]);
   });
 
-  it('ignores a duplicate mark', () => {
+  it('ignores a duplicate note', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     const before = game;
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     expect(game).toBe(before);
   });
 
-  it('removes a mark', () => {
+  it('removes a note', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
-    game = applyMove(game, { kind: 'removeMark', cell: BLANK, digit: 7 });
-    expect(game.marks[BLANK]).toEqual([]);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
+    game = applyMove(game, { kind: 'removeNote', cell: BLANK, digit: 7, note: 'included' });
+    expect(game.notes[BLANK]!.included).toEqual([]);
   });
 
-  it('clears a value cell marks when a value is entered', () => {
+  it('clears notes when a value is entered', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
-    expect(game.marks[BLANK]).toEqual([]);
+    expect(game.notes[BLANK]!.included).toEqual([]);
   });
 
-  it('refuses to mark a filled cell', () => {
+  it('refuses to note a filled cell', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
     const before = game;
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     expect(game).toBe(before);
   });
 
-  it('allows marks the engine disagrees with', () => {
+  it('allows notes the engine disagrees with', () => {
     // The whole point of marks being separate from candidates: a player can
     // pencil in something impossible, and the app should let them.
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 5 }); // 5 is in r1c1
-    expect(game.marks[BLANK]).toEqual([5]);
-    expect(cellView(game, BLANK).staleMarks).toEqual([5]);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 5, note: 'included' }); // 5 is in r1c1
+    expect(game.notes[BLANK]!.included).toEqual([5]);
+    expect(cellView(game, BLANK).staleNotes).toEqual([5]);
   });
 });
 
@@ -178,12 +178,12 @@ describe('history', () => {
     expect(game.entries[3]).toBe(8);
   });
 
-  it('restores marks through undo', () => {
+  it('restores notes through undo', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 4 });
-    game = applyMove(game, { kind: 'addMark', cell: BLANK, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
     game = undo(game);
-    expect(game.marks[BLANK]).toEqual([4]);
+    expect(game.notes[BLANK]!.included).toEqual([4]);
   });
 
   it('does nothing when there is nothing to undo or redo', () => {
@@ -221,11 +221,11 @@ describe('progress', () => {
   it('resets to the givens', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
-    game = applyMove(game, { kind: 'addMark', cell: 3, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: 3, digit: 7, note: 'included' });
     game = resetGame(game);
 
     expect(game.entries[BLANK]).toBeNull();
-    expect(game.marks[3]).toEqual([]);
+    expect(game.notes[3]!.included).toEqual([]);
     expect(game.history).toHaveLength(0);
     expect(canUndo(game)).toBe(false);
   });
@@ -235,9 +235,9 @@ describe('selection', () => {
   it('selects and clears', () => {
     let game = createGame(EASY);
     game = selectCell(game, 40);
-    expect(game.selected).toBe(40);
+    expect(game.selected).toEqual([40]);
     game = selectCell(game, null);
-    expect(game.selected).toBeNull();
+    expect(game.selected).toEqual([]);
   });
 
   it('ignores an out-of-range selection', () => {
@@ -250,7 +250,7 @@ describe('serialization', () => {
   it('survives a JSON round trip', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
-    game = applyMove(game, { kind: 'addMark', cell: 3, digit: 7 });
+    game = applyMove(game, { kind: 'addNote', cell: 3, digit: 7, note: 'included' });
     game = selectCell(game, 40);
 
     const restored = JSON.parse(JSON.stringify(game)) as typeof game;
