@@ -10,10 +10,11 @@
 
 ## Current Focus
 
-**Next up:** backlog #1 — fix `applyHint` so it can apply an `EliminationHint`.
-It's the hard gate on all of Phase 2.
+**Next up:** `@tsudoku/game` — the framework-free state layer — then a React
+web app to play against the existing corpus.
 
-**In flight:** nothing blocking. Release plumbing is done (see Recent Progress).
+**In flight:** nothing blocking. Board geometry is centralised and brute-force
+analysis is ported, so game state can store a real `solution` field.
 
 **Deliberately parked:** Phase 3/4 techniques, ML training, React Native.
 
@@ -246,6 +247,22 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-19 (later)
+
+- **Brute-force analysis ported** to `@tsudoku/solver` — a line-by-line port of
+  SE's `BruteForceAnalysis.java`. Solves via SE's forward/reverse trick: both
+  directions agree iff the puzzle has exactly one solution. Verified against all
+  607 corpus puzzles (all solved, all structurally valid, all givens preserved,
+  1.0ms/puzzle) plus uniqueness on a 60-puzzle sample.
+- **`NoDoubles` ported alongside it**, because SE's own docstring warns the
+  analysis is "extremely slow" on a grid with a doubled value. It was: a
+  contradictory grid took **3.1s**, and the structural pre-check took the
+  solver test suite from **6343ms to 52ms**.
+- **Board geometry centralised** in `models/board.ts` (`SIZE`, `BOX_WIDTH`,
+  `BOX_HEIGHT`, `CELL_COUNT`, `rowOf`/`colOf`/`boxOf`/`indexOf`). Groundwork for
+  variant board sizes; the engine stays 9x9. Techniques deliberately keep their
+  literal `9`s, since each mirrors a `9` in the SE Java source.
 
 ### 2026-09-19
 
