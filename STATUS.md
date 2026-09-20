@@ -17,9 +17,11 @@ notes, undo, ask for a hint and get the engine's real technique explanation.
 (2.6) and Claiming (2.8) are ported from `Locking.java`; auto-notes fill from
 the engine's candidates and are cleared from peers when a value is placed.
 
-**Next up: stage 2.3 — the generator**, which Phase 2 needs for a validation
-corpus. `phase2.jsonl` is still empty, so Pointing and Claiming are registered
-but not benchmark-validated (see the silent-pass problem below).
+**Next up: stage 2.3 — the generator.** Planned in detail below. The first step
+is a small gap in the existing port: `BruteForceAnalysis` omitted SE's
+randomised digit order, so it always solves ascending and would generate the
+same grid every time. Without that there is no random solution to carve a
+puzzle from.
 
 **Open questions, deliberately unresolved:**
 
@@ -28,6 +30,13 @@ but not benchmark-validated (see the silent-pass problem below).
   unlocks cloud saves, leaderboards and server-side chain techniques, and it
   also means hosting, cost and an attack surface the current static SPA does
   not have.
+- **Auto-solving "obvious" techniques.** Wanted eventually, behind a toggle:
+  after a placement, re-derive candidates and fill any cell left with a single
+  candidate. Deferred because the scope decision is not obvious — measured, a
+  single placement cascades **~35 naked singles on HiddenSingle puzzles** (i.e.
+  it solves the board) but only **~4 on DirectHiddenPair puzzles**. So the same
+  feature is "a convenience" or "the app played your game" depending on the
+  puzzle. Worth deciding what cascade depth is wanted before building.
 - **Whether a filled cell should lock** once entered. Options weighed: lock fully (undo is the only way back), block
   overwrite but allow erase, or leave freely editable. The tension is that
   locking fights exploration — recovering from a wrong guess would mean
@@ -177,14 +186,79 @@ Port order should follow SE difficulty, since that is also roughly teaching
 order. Pointing and Claiming first: they are the simplest elimination
 techniques and the first ones a learner meets after singles.
 
-### 2.3 Generator — ships with Phase 2, not after
+### 2.3 Generator — **next up**
 
-Phase 2 has **no validation corpus** (`phase2.jsonl` is empty), so each
-technique lands unvalidated without it. Worse, the benchmark currently reports
-PASS for a technique with zero puzzles, so the gap is silent.
+This is not a new feature so much as **closing a hole that already exists**.
+`Pointing` and `Claiming` are implemented, registered in `DEFAULT_PRODUCERS`
+and shipping with **zero benchmark validation**, because `phase2.jsonl` is
+empty — and the runner reports PASS for a technique with no puzzles, so the gap
+is silent.
 
-The generator also fills the two Phase 1 holes — DirectClaiming (1.9) and full
-house (1.0) — which the app needs before it can teach those lessons.
+They were validated another way (8,756 eliminations across the Phase 1 corpus,
+none unsound), but that proves the _logic_ is right, not that the _SE difficulty
+ratings_ match. Only Phase 2 puzzles can show that.
+
+#### What it ports
+
+SE's `diuf/sudoku/generator/Generator.java` is 185 lines and already depends on
+`BruteForceAnalysis`, which is ported. The algorithm:
+
+1. Solve an **empty** grid with randomised digit order — a random solution _is_
+   a random completed board.
+2. Shuffle a list of the 81 cell indexes.
+3. Repeatedly pick a cell, clear it (plus its symmetric partners), and keep the
+   removal only if the puzzle still has **exactly one solution** — which is
+   `countSolutions`, already ported.
+4. Stop when no further cell can be removed.
+
+#### The one real gap
+
+`solveRandom` is the same recursive `analyse` already ported, except SE takes a
+`Random` and rotates the digit order:
+
+```java
+firstValue = rnd.nextInt(9);
+value = ((value0 + firstValue) % 9) + 1;
+```
+
+The TSudoku port **omitted that branch**, so it always solves ascending and
+would return the identical grid every time. Restoring it is small, and it is a
+prerequisite: without it there is no random solution to carve a puzzle from.
+
+Seeding the RNG explicitly is worth doing — a reproducible corpus is far easier
+to debug and to diff than one that changes every run.
+
+#### Symmetry
+
+`Symmetry.java` (179 lines) supplies the point-reflection patterns that make
+puzzles look hand-made — rotational, diagonal, mirror, and none. Worth porting
+for aesthetics, but **not on the critical path**: "no symmetry" generates valid
+puzzles and is the simplest case to start from.
+
+#### Then: rate and bucket
+
+Generation produces _puzzles_; the corpus needs _rated_ puzzles. The existing
+intake pipeline (`tools/se-reference/intake.sh`) already rates via the real SE
+CLI and sorts into `verified/` or `rejected/`, and `build-corpus.sh` buckets by
+rating into `phaseN.jsonl`. So the generator feeds machinery that already
+exists rather than needing new plumbing.
+
+#### What this unblocks
+
+- Phase 2 techniques get real SE-rating validation instead of a silent PASS
+- The two **Phase 1 corpus holes** get filled — `DirectClaiming` (1.9) and full
+  house (1.0) both have zero puzzles today, so the app cannot teach either
+- Puzzle supply for the app stops being 30 hand-picked entries
+- Model training becomes possible at all (deliberately gated behind this)
+
+#### Ordering
+
+1. Add randomised digit order to `BruteForceAnalysis` (the gap above)
+2. Port `Generator.generate` with no symmetry
+3. Generate, rate through the existing SE intake, and fill `phase2.jsonl`
+4. Fill the two Phase 1 holes
+5. Port `Symmetry` for better-looking puzzles
+6. Wire `tsudoku gen` in the CLI
 
 ### 2.4 The tutor layer
 
