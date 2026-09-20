@@ -10,11 +10,11 @@
 
 ## Current Focus
 
-**Next up:** `apps/web` — a React app to actually play the thing, against the
-existing 607-puzzle corpus.
+**Next up:** stage 2 of the app — notes UX polish, then the tutorial layer that
+the decoration model was built for.
 
-**In flight:** nothing blocking. `@tsudoku/game` is done and framework-free,
-with a lint rule that fails the build if React ever leaks into it.
+**In flight:** `apps/web` needs its own Vercel project (Root Directory
+`apps/web`); custom domain deferred until tsudoku.dev moves to Cloudflare.
 
 **Deliberately parked:** Phase 3/4 techniques, ML training, React Native.
 
@@ -252,6 +252,21 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-19 (evening)
+
+- **`apps/web` is playable.** Vite + React + TypeScript + Tailwind + shadcn/ui.
+  Renders the board, enters values, three input modes (value / note / strike),
+  undo/redo, error detection, and a hint panel wired to the real engine.
+  Verified in a browser, not just compiled.
+- **The teaching mechanic already works.** Pencil a note for 4, enter a 4
+  elsewhere in the row, and the note turns orange — `staleNotes` firing with no
+  tutorial code written.
+- **Decorations round-trip end to end**: engine hint → `hintDecorations()` →
+  semantic role → CSS token → ring on exactly the cell the hint named.
+- 212KB built, 62KB gzipped, for the whole engine + solver + UI.
+- Fixed the root eslint config, which had no `apps/*` entry in
+  `parserOptions.project` and so could not parse a single app file.
 
 ### 2026-09-19 (later still)
 
