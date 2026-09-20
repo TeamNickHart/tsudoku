@@ -81,12 +81,12 @@ export function Cell({
       className={cn(
         'relative flex aspect-square items-center justify-center select-none',
         'transition-colors duration-75',
-        // Grid lines are drawn as absolutely-positioned overlays below, NOT as
-        // borders on this element. A border is inside the element's box, so a
-        // cell with a 2px box-boundary border gets 2px less content width than
-        // its neighbours — measured as a 69/70/71px spread, which pushes digits
-        // visibly off-grid. Overlays take no layout space, so every cell's
-        // content box is identical.
+        // No borders and no per-cell rules. Grid lines are drawn once by
+        // <BoardLines> as full-width/height overlays on the board itself.
+        // Drawing them per cell meant a box boundary was really nine separate
+        // segments, and sub-pixel differences in cell offsets (measured at
+        // 279.992 vs 280) landed them on different device pixels, so the line
+        // rendered solid in some columns and faint or missing in others.
         'border-0',
         // Adjacency shading, then selection, then decorations — later wins.
         isSameDigit && !isSelected && 'bg-board-peer/60',
@@ -96,7 +96,6 @@ export function Cell({
         'hover:bg-board-peer/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >
-      <GridLines row={row} col={col} />
       {value !== null ? (
         <span
           className={cn(
@@ -112,43 +111,6 @@ export function Cell({
         <NoteGrid notes={notes} staleNotes={staleNotes} noteRoles={noteRoles} />
       )}
     </button>
-  );
-}
-
-/**
- * The rules to the right of and below a cell.
- *
- * Absolutely positioned so they overlay the cell rather than shrinking it.
- * Box boundaries are heavier; the last row and column draw nothing, since the
- * board's own border closes the grid.
- */
-function GridLines({ row, col }: { readonly row: number; readonly col: number }): JSX.Element {
-  const isBoxRight = col % 3 === 2;
-  const isBoxBottom = row % 3 === 2;
-  const lastCol = col === SIZE - 1;
-  const lastRow = row === SIZE - 1;
-
-  return (
-    <>
-      {!lastCol && (
-        <span
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-y-0 right-0',
-            isBoxRight ? 'w-[2px] bg-foreground/30' : 'w-px bg-border/60',
-          )}
-        />
-      )}
-      {!lastRow && (
-        <span
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-x-0 bottom-0',
-            isBoxBottom ? 'h-[2px] bg-foreground/30' : 'h-px bg-border/60',
-          )}
-        />
-      )}
-    </>
   );
 }
 
