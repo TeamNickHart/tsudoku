@@ -1,7 +1,60 @@
-import { SIZE, boxOf, colOf, rowOf } from '@tsudoku/core';
+import { BOX_HEIGHT, BOX_WIDTH, SIZE, boxOf, colOf, rowOf } from '@tsudoku/core';
 import type { CellView } from '@tsudoku/game';
 import { useDragSelect } from '@/lib/useDragSelect';
+import { cn } from '@/lib/utils';
 import { Cell } from './Cell';
+
+/**
+ * The grid rules, drawn once for the whole board.
+ *
+ * Deliberately NOT per cell. When each cell drew its own right/bottom rule, a
+ * box boundary was really nine independent segments, and sub-pixel differences
+ * in cell offsets (measured at 279.992 vs 280 across one boundary) put them on
+ * different device pixels — so the line came out solid in some columns and
+ * faint or missing in others.
+ *
+ * Here each line is a single element spanning the full width or height,
+ * positioned as a percentage of the board. One element, one rasterisation, so
+ * a line is either fully drawn or not drawn at all.
+ */
+function BoardLines(): JSX.Element {
+  const lines = [];
+
+  for (let i = 1; i < SIZE; i++) {
+    const pct = (i / SIZE) * 100;
+    const isBoxBoundary = i % BOX_WIDTH === 0;
+    lines.push(
+      <span
+        key={`v${i}`}
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-y-0',
+          isBoxBoundary ? 'w-[2px] bg-foreground/30' : 'w-px bg-border/60',
+        )}
+        // Centre the rule on the boundary so a 2px line straddles it evenly.
+        style={{ left: `calc(${pct}% - ${isBoxBoundary ? 1 : 0.5}px)` }}
+      />,
+    );
+  }
+
+  for (let i = 1; i < SIZE; i++) {
+    const pct = (i / SIZE) * 100;
+    const isBoxBoundary = i % BOX_HEIGHT === 0;
+    lines.push(
+      <span
+        key={`h${i}`}
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-0',
+          isBoxBoundary ? 'h-[2px] bg-foreground/30' : 'h-px bg-border/60',
+        )}
+        style={{ top: `calc(${pct}% - ${isBoxBoundary ? 1 : 0.5}px)` }}
+      />,
+    );
+  }
+
+  return <>{lines}</>;
+}
 
 interface BoardProps {
   readonly cells: readonly CellView[];
@@ -51,9 +104,10 @@ export function Board({
     <div
       role="grid"
       aria-label="Sudoku board"
-      className="grid aspect-square w-full grid-cols-9 overflow-hidden rounded-lg border-2 border-foreground/30 bg-background shadow-sm"
+      className="relative grid aspect-square w-full grid-cols-9 overflow-hidden rounded-lg border-2 border-foreground/30 bg-background shadow-sm"
       style={{ gridTemplateRows: `repeat(${SIZE}, minmax(0, 1fr))` }}
     >
+      <BoardLines />
       {cells.map((view) => (
         <Cell
           key={view.index}
