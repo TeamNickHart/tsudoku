@@ -1,11 +1,17 @@
 import { SIZE, boxOf, colOf, rowOf } from '@tsudoku/core';
 import type { CellView } from '@tsudoku/game';
+import { useDragSelect } from '@/lib/useDragSelect';
 import { Cell } from './Cell';
 
 interface BoardProps {
   readonly cells: readonly CellView[];
   readonly selected: readonly number[];
-  readonly onSelect: (index: number, additive: boolean) => void;
+  /** Replace the whole selection — used while painting a drag. */
+  readonly onReplaceSelection: (cells: readonly number[]) => void;
+  /** Toggle one cell in or out — used for taps. */
+  readonly onToggleSelection: (cell: number) => void;
+  /** Keyboard activation. */
+  readonly onActivate: (index: number, additive: boolean) => void;
 }
 
 /**
@@ -15,7 +21,19 @@ interface BoardProps {
  * they are navigation aids, not game state, and a different UI might highlight
  * differently or not at all.
  */
-export function Board({ cells, selected, onSelect }: BoardProps): JSX.Element {
+export function Board({
+  cells,
+  selected,
+  onReplaceSelection,
+  onToggleSelection,
+  onActivate,
+}: BoardProps): JSX.Element {
+  const { cellProps } = useDragSelect({
+    onReplace: onReplaceSelection,
+    onToggle: onToggleSelection,
+    selected,
+  });
+
   const focus = selected.length === 1 ? selected[0] : undefined;
   const focusCell = focus === undefined ? undefined : cells[focus];
   const focusDigit = focusCell?.value ?? null;
@@ -42,7 +60,8 @@ export function Board({ cells, selected, onSelect }: BoardProps): JSX.Element {
           view={view}
           isPeer={isPeer(view.index)}
           isSameDigit={focusDigit !== null && view.value === focusDigit}
-          onSelect={onSelect}
+          onActivate={onActivate}
+          {...cellProps(view.index)}
         />
       ))}
     </div>

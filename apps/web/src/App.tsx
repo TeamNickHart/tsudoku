@@ -21,9 +21,23 @@ export function App(): JSX.Element {
   const game = useGame(puzzle.puzzle);
   const { state, cells, counts, errors, solved, remaining, mode, setMode, hint } = game;
 
-  const selectCellAt = useCallback(
+  const activateCell = useCallback(
     (index: number, additive: boolean) => {
       game.dispatch({ type: 'select', cell: index, additive });
+    },
+    [game],
+  );
+
+  const replaceSelection = useCallback(
+    (cells: readonly number[]) => {
+      game.dispatch({ type: 'setSelection', cells });
+    },
+    [game],
+  );
+
+  const toggleSelection = useCallback(
+    (cell: number) => {
+      game.dispatch({ type: 'select', cell, additive: true });
     },
     [game],
   );
@@ -94,7 +108,13 @@ export function App(): JSX.Element {
         </p>
       </header>
 
-      <Board cells={cells} selected={state.selected} onSelect={selectCellAt} />
+      <Board
+        cells={cells}
+        selected={state.selected}
+        onReplaceSelection={replaceSelection}
+        onToggleSelection={toggleSelection}
+        onActivate={activateCell}
+      />
 
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground tabular-nums">
@@ -188,8 +208,8 @@ export function App(): JSX.Element {
       )}
 
       <p className="mt-auto text-xs text-muted-foreground">
-        Click a cell, then type a digit. <kbd>V</kbd> value · <kbd>N</kbd> note · <kbd>X</kbd>{' '}
-        strike · shift-click to multi-select · <kbd>⌘Z</kbd> undo
+        Tap a cell or drag to select a run; tap again to deselect. Then type a digit. <kbd>V</kbd>{' '}
+        value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>⌘Z</kbd> undo
       </p>
     </div>
   );
