@@ -10,11 +10,15 @@
 
 ## Current Focus
 
-**Next up:** stage 2 of the app — notes UX polish, then the tutorial layer that
-the decoration model was built for.
+**Stage 1 is done.** The app is playable and deployed: enter values, take
+notes, undo, ask for a hint and get the engine's real technique explanation.
 
-**In flight:** `apps/web` needs its own Vercel project (Root Directory
-`apps/web`); custom domain deferred until tsudoku.dev moves to Cloudflare.
+**Next up: stage 2 — make it teach.** The gate is `applyHint`, because every
+Phase 2 technique is elimination-based and `applyHint` still cannot apply an
+elimination. See [Stage 2](#stage-2--make-it-teach).
+
+**Deployed:** `tsudoku-play` on Vercel (Root Directory `apps/web`). Custom
+domain `play.tsudoku.dev` deferred until tsudoku.dev moves to Cloudflare.
 
 **Deliberately parked:** Phase 3/4 techniques, ML training, React Native.
 
@@ -31,19 +35,17 @@ technique in the SE 1.0–2.5 band.
 > whether upstream has moved. SE is effectively dormant (21 commits since 2006;
 > none touching `solver/rules` since January 2023), so this should stay stable.
 
-Everything downstream of `@tsudoku/core` is an empty stub.
-
-| Package                 | State         | Notes                                                           |
-| ----------------------- | ------------- | --------------------------------------------------------------- |
-| `@tsudoku/core`         | **Working**   | Phase 1 complete, 100% SE parity                                |
-| `@tsudoku/solver`       | Stub          | `export const VERSION` and nothing else                         |
-| `@tsudoku/generator`    | Stub          | same                                                            |
-| `@tsudoku/cli`          | Stub          | same; `commander` already a declared dependency                 |
-| `@tsudoku/react-native` | Stub          | same; intentionally deferred until web proves out               |
-| `@tsudoku/game`         | Doesn't exist | Planned — see [The Architecture Split](#the-architecture-split) |
-| `@tsudoku/web`          | Doesn't exist | Planned                                                         |
-| `docs/` (VitePress)     | Working       | Deploys to tsudoku.dev via Vercel                               |
-| `benchmarks/`           | Working       | SE parity runner + 607-puzzle corpus                            |
+| Package                 | State       | Notes                                                  |
+| ----------------------- | ----------- | ------------------------------------------------------ |
+| `@tsudoku/core`         | **Working** | Phase 1 complete, 100% SE parity (~1250 lines)         |
+| `@tsudoku/game`         | **Working** | State, moves, notes, history, decorations (~720 lines) |
+| `@tsudoku/solver`       | **Working** | Brute force, uniqueness, solution strings (~310 lines) |
+| `apps/web`              | **Working** | Playable, deployed (~820 lines)                        |
+| `@tsudoku/generator`    | Stub        | `export const VERSION` and nothing else                |
+| `@tsudoku/cli`          | Stub        | same; `commander` already a declared dependency        |
+| `@tsudoku/react-native` | Stub        | same; intentionally deferred until web proves out      |
+| `docs/` (VitePress)     | Working     | Deploys to tsudoku.dev via Vercel                      |
+| `benchmarks/`           | Working     | SE parity runner + 607-puzzle corpus                   |
 
 ### Implemented techniques
 
@@ -83,11 +85,16 @@ having to be rewritten for the RN port.
 ```
 @tsudoku/core          pure engine — techniques, grid, solver      [working]
         ↓
-@tsudoku/game          game state — no UI, no React, no platform   [planned]
+@tsudoku/game          game state — no UI, no React, no platform   [working]
         ↓
    ┌────┴────┐
-@tsudoku/web   @tsudoku/react-native      thin rendering layers    [planned]
+apps/web       @tsudoku/react-native      thin rendering layers
+[working]      [planned]
 ```
+
+The boundary is **enforced, not just documented**: importing `react`,
+`react-dom` or `react-native` inside `packages/game/src` is an eslint error
+that fails the build.
 
 `@tsudoku/game` owns everything that is _the game but not the pixels_: current
 puzzle, pencil marks, undo/redo, mistake tracking, hint requests, lesson
@@ -109,54 +116,95 @@ Two decisions worth making early, because they're expensive to retrofit:
 
 ---
 
-## Backlog
+## Stage 2 — make it teach
 
-Ordered by _what unblocks the game_, not by SE phase number.
+Stage 1 proved the game is playable. Stage 2 is about the thing that makes this
+project worth doing: **the app should teach a technique, not just apply it.**
 
-### 1. Fix `applyHint` for eliminations — **hard gate**
+Right now the app can _name_ a technique and place its digit. It cannot yet
+show you _why_ — because "why" almost always means "here is a candidate that
+can be eliminated, and here is the reasoning", and the engine cannot represent
+an elimination end to end.
 
-`packages/core/src/models/GridImpl.ts`. The elimination branch computes
-`newCandidates`, discards it with `void newCandidates`, and rebuilds from cell
-values only. Harmless today (every Phase 1 technique emits a `DirectHint`) but
-**Phase 2 is entirely elimination-based**. Nothing in Phase 2 works until this
-is fixed.
+### 2.1 Fix `applyHint` for eliminations — **the gate**
 
-### 2. `@tsudoku/game` — framework-free state layer
+`packages/core/src/models/GridImpl.ts:159`. The elimination branch computes
+`newCandidates`, throws it away with `void newCandidates`, and rebuilds from
+cell values only.
 
-Per the split above. Build it alongside the first UI so the API is driven by
-real usage, not speculation.
+Harmless so far — every Phase 1 technique emits a `DirectHint`. But **every
+Phase 2 technique is elimination-based**, so nothing downstream works until
+this is fixed. It is a small, well-understood change and it unblocks
+everything else in this stage.
 
-### 3. Web UI — playable against the existing corpus
+Note this also needs a `Grid` that can carry _explicit_ candidates rather than
+always recomputing them from values, since an elimination is precisely a
+candidate that logic removed but arithmetic would put back.
 
-Grid rendering, digit entry, pencil marks, undo/redo, hint button wired to the
-existing engine explanations. 607 puzzles is plenty to build and iterate on.
+### 2.2 Phase 2 techniques (SE 2.6–4.4)
 
-### 4. Phase 2 techniques **+ generator, together**
+The on-device band, and the techniques actually worth teaching:
 
-Phase 2 is the on-device band (SE ≤ 4.4) and the techniques actually worth
-teaching: Pointing, Claiming, NakedSet, HiddenSet, Fisherman (X-Wing,
-Swordfish, Jellyfish), XY-Wing, XYZ-Wing.
+| Technique           | SE  | SE Java source   |
+| ------------------- | --- | ---------------- |
+| Pointing            | 2.6 | `Locking.java`   |
+| Claiming            | 2.8 | `Locking.java`   |
+| NakedPair / Triplet | 3.0 | `NakedSet.java`  |
+| X-Wing              | 3.2 | `Fisherman.java` |
+| HiddenPair          | 3.4 | `HiddenSet.java` |
+| Swordfish           | 3.8 | `Fisherman.java` |
+| XY-Wing / XYZ-Wing  | 4.2 | `XYWing.java`    |
 
-The generator ships _with_ Phase 2 rather than after it, because Phase 2 has no
-validation corpus — see [When To Generate](#when-to-generate).
+Port order should follow SE difficulty, since that is also roughly teaching
+order. Pointing and Claiming first: they are the simplest elimination
+techniques and the first ones a learner meets after singles.
 
-### 5. Fill the corpus holes
+### 2.3 Generator — ships with Phase 2, not after
 
-DirectClaiming (1.9) and full house (1.0) have zero puzzles. Needed for both
-validation and teaching content.
+Phase 2 has **no validation corpus** (`phase2.jsonl` is empty), so each
+technique lands unvalidated without it. Worse, the benchmark currently reports
+PASS for a technique with zero puzzles, so the gap is silent.
 
-### 6. CLI commands, as the need arises
+The generator also fills the two Phase 1 holes — DirectClaiming (1.9) and full
+house (1.0) — which the app needs before it can teach those lessons.
 
-Built to serve testing/training, not speced up front. Highest value first:
+### 2.4 The tutor layer
+
+This is where the decoration model pays off. The machinery already exists:
+`hintDecorations()` turns a hint into targets with semantic roles, and the UI
+already renders them. A tutorial step is the same shape.
+
+What is missing is _sequencing_ — a lesson is an ordered list of steps, each
+with decorations and a caption, advanced by the learner. Deterministic; no AI
+needed at runtime.
+
+### 2.5 Notes UX
+
+The model supports more than the UI exposes:
+
+- **Multi-select** — `applyToSelection` works, but the UI only shift-clicks.
+  Drag-select is the natural gesture.
+- **Auto-notes** — fill every cell's included notes from the engine's real
+  candidates. One button, high value, and it makes the stale-note highlight
+  much more interesting.
+- **Excluded notes** are enterable but have no dedicated affordance beyond the
+  mode toggle.
+
+### 2.6 CLI, as it becomes useful
 
 - `tsudoku rate <puzzle>` — SE-comparable rating without the Java round-trip
-- `tsudoku explain <puzzle>` — dump the full solve path; this is how lesson
-  content gets authored
+- `tsudoku explain <puzzle>` — dump a full solve path; **this is how lesson
+  content gets authored**
 - `tsudoku gen` — once the generator exists
 
-### 7. Tutor → lessons → React Native
+### Stage 2 ordering
 
-Deterministic tutor layer, then lesson content, then the RN port.
+1. `applyHint` eliminations — gates everything
+2. Pointing + Claiming — the first elimination techniques, and a real test of 1
+3. Generator + corpus for Phase 2
+4. Remaining Phase 2 techniques
+5. Tutor layer + first lessons
+6. Notes UX and CLI, opportunistically
 
 ### Explicitly not now
 
@@ -165,6 +213,8 @@ Deterministic tutor layer, then lesson content, then the RN port.
 - **Phase 3 uniqueness techniques** — after Phase 2 proves out.
 - **ML / model training** — blocked on the generator by deliberate rule. 607
   puzzles across 6 rating buckets is not a training set.
+- **React Native** — after the web app proves the ideas. The architecture is
+  ready; the content is not.
 
 ---
 
@@ -230,7 +280,7 @@ An AI layer on top is optional polish.
 
 ## Known Issues
 
-- **`applyHint` can't apply eliminations** — backlog #1, blocks Phase 2.
+- **`applyHint` can't apply eliminations** — see [2.1](#21-fix-applyhint-for-eliminations--the-gate). Gates all of Phase 2.
 - **Benchmark silently passes techniques with no corpus** — see above.
 - **DirectClaiming is unvalidated** — implemented, registered, zero test puzzles.
 - **`pnpm benchmark --technique <name>` doesn't exist.** Referenced by
@@ -242,7 +292,13 @@ An AI layer on top is optional polish.
   publishing is a manual workflow (`publish.yml`), so nothing reaches npm
   without a deliberate click. See RELEASE.md. Note `changeset publish` ships
   _every_ non-private package — four of the five are still stubs, so consider
-  marking them `"private": true` before a first release.
+  marking them `"private": true` before a first release. `apps/web` is already
+  private, so it is not affected.
+
+- **Two Vercel projects watch this repo** — `tsudoku` (docs → tsudoku.dev) and
+  `tsudoku-play` (the app). Every PR gets two previews. Don't enable Vercel's
+  "only build when root directory changes" on the app: it depends on `core`,
+  `game` and `solver`, so an engine change must trigger a rebuild.
 - **`PLAN.md` describes CI jobs that don't exist** (`coverage`, nyc, Codecov)
   and an `apps/showcase` that was never created. Treat it as historical intent,
   not a description of the repo.
@@ -252,6 +308,21 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-20
+
+- **Deployed.** `tsudoku-play` on Vercel, production green, verified by playing
+  it in a browser: entered a digit, asked for a hint, got "HiddenSingle: 1 can
+  only go in R3C1 in box 1" from the engine running client-side.
+- **First deploy failed** with `Cannot find module '@tsudoku/core'`. Not an npm
+  publishing problem — the build command built only `@tsudoku/web`, so its
+  workspace dependencies never produced the `dist/index.d.ts` files TypeScript
+  needed. It passed locally only because `dist/` was already there. Fixed by
+  using `turbo build --filter=@tsudoku/web`, which walks the dependency graph.
+- **CI was green while the deploy was broken**, which was the real defect.
+  `pnpm build` builds everything, so it cannot catch a _filtered_ build that
+  omits a dependency. Added a `build-web` job running Vercel's exact command
+  from a clean checkout, asserting the artifact exists.
 
 ### 2026-09-19 (evening)
 
