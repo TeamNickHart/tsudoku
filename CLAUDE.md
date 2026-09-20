@@ -35,6 +35,15 @@ technique must mirror the corresponding Java class — same structure, same
 iteration order, same logic, same control flow. Use TypeScript syntax and
 idioms, but the code should read as a direct translation of the Java source.
 
+**The reference is pinned.** Parity claims are measured against SE commit
+`b1f9ed4` (2025-01-22), recorded in `tools/se-reference/PINNED_COMMIT`. Run
+`pnpm se:check` before a porting session to confirm upstream has not moved. If
+it has, read the diff by hand — never apply upstream changes mechanically, since
+deliberate translation is the whole point of the Cardinal Rule.
+
+SE is effectively dormant: 21 commits total, and nothing in `solver/rules` since
+January 2023. Expect this check to be a no-op.
+
 **Porting process:**
 
 1. Read the SE Java source (`tools/se-reference/SudokuExplainer-source/`)

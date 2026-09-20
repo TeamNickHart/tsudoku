@@ -20,6 +20,7 @@
     "corpus:generate": "bash tools/se-reference/generate-corpus.sh",
     "puzzle:intake": "bash tools/se-reference/intake.sh",
     "puzzle:build-corpus": "bash tools/se-reference/build-corpus.sh",
+    "se:check": "bash tools/se-reference/check-upstream.sh",
     "prepare": "husky"
   },
   "devDependencies": {
