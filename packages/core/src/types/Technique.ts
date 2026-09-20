@@ -4,7 +4,10 @@ export type Technique =
   | 'DirectPointing'
   | 'DirectClaiming'
   | 'DirectHiddenPair'
-  | 'DirectHiddenTriplet';
+  | 'DirectHiddenTriplet'
+  // Phase 2 — candidate techniques (SE 2.6–4.4)
+  | 'Pointing'
+  | 'Claiming';
 
 export const TECHNIQUE_DIFFICULTY: Readonly<Record<Technique, number>> = {
   NakedSingle: 2.3,
@@ -13,6 +16,8 @@ export const TECHNIQUE_DIFFICULTY: Readonly<Record<Technique, number>> = {
   DirectClaiming: 1.9,
   DirectHiddenPair: 2.0,
   DirectHiddenTriplet: 2.5,
+  Pointing: 2.6,
+  Claiming: 2.8,
 };
 
 // HiddenSingle uses different ratings depending on context:

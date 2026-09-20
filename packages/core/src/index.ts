@@ -58,3 +58,4 @@ export { HiddenSingle } from './techniques/phase1/HiddenSingle.js';
 export { DirectPointing } from './techniques/phase1/DirectPointing.js';
 export { DirectClaiming } from './techniques/phase1/DirectClaiming.js';
 export { DirectHiddenSet } from './techniques/phase1/DirectHiddenSet.js';
+export { Locking } from './techniques/phase2/Locking.js';

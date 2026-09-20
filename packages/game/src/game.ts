@@ -153,6 +153,14 @@ function reduce(state: GameState, move: Move): GameState {
       );
       return { ...state, notes };
     }
+    case 'setNotes': {
+      if (state.entries[move.cell] !== null) return state;
+      const cellNotes = state.notes[move.cell]!;
+      const sorted = [...move.digits].sort((a, b) => a - b);
+      const notes = [...state.notes];
+      notes[move.cell] = { included: sorted, excluded: cellNotes.excluded };
+      return { ...state, notes };
+    }
     case 'clearNotes': {
       const cellNotes = state.notes[move.cell]!;
       if (cellNotes.included.length === 0 && cellNotes.excluded.length === 0) return state;
@@ -192,6 +200,35 @@ export function applyToSelection(state: GameState, build: (cell: number) => Move
   let current = state;
   for (const cell of state.selected) {
     current = applyMove(current, build(cell));
+  }
+  return current;
+}
+
+/**
+ * Fill every empty cell's included notes with the engine's real candidates.
+ *
+ * This is the "auto-notes" / "fill pencil marks" button every Sudoku app has.
+ * The engine already knows the answer — a cell's `candidateList` is exactly the
+ * set of digits not ruled out by a peer — so this is a read, not a computation.
+ *
+ * Note the result is *truth at this moment*: it reflects eliminations the
+ * engine has applied. That is deliberately different from what the player might
+ * have pencilled themselves, and comparing the two is the teaching moment
+ * `staleNotes` exposes.
+ *
+ * Existing excluded notes are preserved; only included notes are replaced.
+ */
+export function fillNotes(state: GameState, cells?: readonly number[]): GameState {
+  const grid = toGrid(state);
+  const targets = cells ?? Array.from({ length: CELL_COUNT }, (_, i) => i);
+
+  let current = state;
+  for (const cell of targets) {
+    if (current.entries[cell] !== null) continue;
+    if (isGiven(current, cell)) continue;
+    const digits = grid.getCellByIndex(cell).candidateList;
+    if (digits.length === 0) continue;
+    current = applyMove(current, { kind: 'setNotes', cell, digits });
   }
   return current;
 }

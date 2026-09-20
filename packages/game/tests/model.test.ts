@@ -7,8 +7,10 @@ import {
   clearDecorations,
   createGame,
   digitCounts,
+  fillNotes,
   hintDecorations,
   nextHint,
+  remainingCount,
   selectCell,
   setDecorations,
   setSelection,
@@ -207,5 +209,57 @@ describe('boardView', () => {
     expect(views).toHaveLength(81);
     expect(views[0]!.lock).toBe('given');
     expect(views[BLANK]!.lock).toBe('editable');
+  });
+});
+
+describe('fillNotes (auto-notes)', () => {
+  it('fills every empty cell with the engine candidates', () => {
+    const before = createGame(EASY);
+    expect(before.notes.filter((n) => n.included.length > 0)).toHaveLength(0);
+
+    const after = fillNotes(before);
+    const filled = after.notes.filter((n) => n.included.length > 0);
+    expect(filled.length).toBe(remainingCount(before));
+  });
+
+  it('never omits the digit that actually belongs there', () => {
+    // Auto-notes come from the engine, so they are always a superset of truth.
+    const game = fillNotes(createGame(EASY));
+    for (let i = 0; i < 81; i++) {
+      const notes = game.notes[i]!.included;
+      if (notes.length > 0) {
+        expect(notes).toContain(Number(game.solution[i]));
+      }
+    }
+  });
+
+  it('is undoable one cell at a time', () => {
+    const game = fillNotes(createGame(EASY));
+    const filled = game.notes.filter((n) => n.included.length > 0).length;
+    const stepped = undo(game);
+    expect(stepped.notes.filter((n) => n.included.length > 0).length).toBe(filled - 1);
+  });
+
+  it('only fills the selection when one exists', () => {
+    let game = setSelection(createGame(EASY), [2, 3]);
+    game = fillNotes(game, game.selected);
+    expect(game.notes.filter((n) => n.included.length > 0)).toHaveLength(2);
+  });
+
+  it('leaves givens and filled cells alone', () => {
+    const game = fillNotes(createGame(EASY));
+    expect(game.notes[0]!.included).toHaveLength(0); // a given
+  });
+
+  it('preserves excluded notes', () => {
+    let game = applyMove(createGame(EASY), {
+      kind: 'addNote',
+      cell: 2,
+      digit: 9,
+      note: 'excluded',
+    });
+    game = fillNotes(game, [2]);
+    expect(game.notes[2]!.excluded).toEqual([9]);
+    expect(game.notes[2]!.included.length).toBeGreaterThan(0);
   });
 });

@@ -145,6 +145,14 @@ export function App(): JSX.Element {
         >
           Redo
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => game.dispatch({ type: 'fillNotes' })}
+          title="Fill notes with the engine's candidates (selection, or whole board)"
+        >
+          Auto-notes
+        </Button>
         <Button variant="outline" size="sm" onClick={game.requestHint}>
           Hint
         </Button>
