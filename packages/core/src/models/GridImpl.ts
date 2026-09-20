@@ -138,35 +138,61 @@ export function recomputeCandidates(grid: Grid): Grid {
   return buildGrid(newCells);
 }
 
+/**
+ * Apply a hint, returning a new grid.
+ *
+ * ## Why this does not just call `recomputeCandidates`
+ *
+ * `recomputeCandidates` derives candidates from *values* — a digit is a
+ * candidate unless a peer already holds it. That is correct for a placement,
+ * but it is exactly wrong for an elimination: an elimination is a candidate
+ * that **logic** ruled out while arithmetic would happily put it back.
+ *
+ * So the grid has to be able to carry explicit candidates. This builds the new
+ * cells directly, preserving each unsolved cell's existing candidate mask,
+ * applying the hint's change, and then cancelling the placed digit from peers
+ * the way SE's `setValueAndCancel` does.
+ *
+ * SE ref: Grid.setValueAndCancel / Solver.cancelPotentialValues
+ */
 export function applyHint(grid: Grid, hint: Hint): Grid {
-  const cellValues = grid.cells.map((c) => ({
-    value: c.value,
-    isGiven: c.isGiven,
-  }));
+  // Start from the current state, candidates included.
+  const values: (number | null)[] = [];
+  const candidates: number[] = [];
+  const givens: boolean[] = [];
+  for (let i = 0; i < CELL_COUNT; i++) {
+    // Safe: i is 0..CELL_COUNT-1
+    const cell = grid.cells[i]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    values.push(cell.value);
+    candidates.push(cell.candidates);
+    givens.push(cell.isGiven);
+  }
 
   if (hint.type === 'direct') {
+    values[hint.cell] = hint.digit;
+    candidates[hint.cell] = 0;
+    // Cancel the placed digit from every peer, as SE does on placement.
     // Safe: hint.cell is a valid index from the technique
-    const existing = cellValues[hint.cell]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-    cellValues[hint.cell] = { value: hint.digit, isGiven: existing.isGiven };
+    for (const pi of PEER_INDICES[hint.cell]!) {
+      // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      // Safe: pi is a valid cell index
+      candidates[pi] = removeCandidate(candidates[pi]!, hint.digit); // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    }
   } else {
     for (const elim of hint.eliminations) {
-      // Safe: elim.cell is a valid index
-      const existing = grid.cells[elim.cell]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const newCandidates = existing.candidates & ~candidateMask(elim.digit);
-      cellValues[elim.cell] = { value: null, isGiven: false };
-      // We need to handle elimination differently — rebuild with explicit candidates
-      // For now, recomputeCandidates will handle it after placement
-      void newCandidates;
+      // Only unsolved cells have candidates to remove.
+      if (values[elim.cell] === null) {
+        // Safe: elim.cell is a valid index from the technique
+        candidates[elim.cell] = candidates[elim.cell]! & ~candidateMask(elim.digit); // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      }
     }
   }
 
-  // Rebuild cells with new values, then recompute candidates
   const newCells: Cell[] = [];
   for (let i = 0; i < CELL_COUNT; i++) {
     // Safe: i is 0..CELL_COUNT-1
-    const cv = cellValues[i]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-    newCells.push(createCell(i, cv.value, 0, cv.isGiven));
+    newCells.push(createCell(i, values[i]!, values[i] === null ? candidates[i]! : 0, givens[i]!)); // eslint-disable-line @typescript-eslint/no-non-null-assertion
   }
 
-  return recomputeCandidates(buildGrid(newCells));
+  return buildGrid(newCells);
 }

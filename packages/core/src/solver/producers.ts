@@ -4,6 +4,7 @@ import { NakedSingle } from '../techniques/phase1/NakedSingle.js';
 import { DirectPointing } from '../techniques/phase1/DirectPointing.js';
 import { DirectClaiming } from '../techniques/phase1/DirectClaiming.js';
 import { DirectHiddenSet } from '../techniques/phase1/DirectHiddenSet.js';
+import { Locking } from '../techniques/phase2/Locking.js';
 
 // Producers ordered by SE difficulty (lowest first).
 // The solver tries each in order and short-circuits on first hit.
@@ -14,4 +15,6 @@ export const DEFAULT_PRODUCERS: readonly HintProducer[] = [
   new DirectHiddenSet(2), // 2.0
   new NakedSingle(), // 2.3 (general) / 1.0 (last value)
   new DirectHiddenSet(3), // 2.5
+  new Locking(true), // 2.6 — Pointing
+  new Locking(false), // 2.8 — Claiming
 ];

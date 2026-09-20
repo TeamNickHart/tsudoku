@@ -29,6 +29,7 @@ export {
   createGame,
   digitCounts,
   errorCells,
+  fillNotes,
   isGiven,
   isSolved,
   redo,

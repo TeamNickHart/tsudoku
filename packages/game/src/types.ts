@@ -81,7 +81,19 @@ export type Move =
       readonly digit: number;
       readonly note: NoteKind;
     }
-  | { readonly kind: 'clearNotes'; readonly cell: number };
+  | { readonly kind: 'clearNotes'; readonly cell: number }
+  /**
+   * Replace a cell's included notes with the engine's actual candidates.
+   *
+   * Carries the digits rather than computing them, so that replaying history
+   * reproduces exactly what the player saw — deriving them at replay time
+   * would use a different board state and give a different answer.
+   */
+  | {
+      readonly kind: 'setNotes';
+      readonly cell: number;
+      readonly digits: readonly number[];
+    };
 
 /**
  * What a decoration points at: a whole cell, or one digit within a cell's

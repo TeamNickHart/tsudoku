@@ -10,6 +10,7 @@ import {
   createGame,
   digitCounts,
   errorCells,
+  fillNotes,
   hintDecorations,
   isSolved,
   nextHint,
@@ -43,6 +44,7 @@ type Action =
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'reset' }
+  | { type: 'fillNotes' }
   | { type: 'showHint'; hint: Hint }
   | { type: 'clearHint' };
 
@@ -88,6 +90,13 @@ function reducer(state: GameState, action: Action): GameState {
       }
       return next;
     }
+
+    case 'fillNotes':
+      // Fill the selection if there is one, otherwise the whole board.
+      return fillNotes(
+        clearDecorations(state),
+        state.selected.length > 0 ? state.selected : undefined,
+      );
 
     case 'undo':
       return undo(clearDecorations(state));
