@@ -1,0 +1,145 @@
+name: Publish
+
+# Manual only. Publishing to npm is irreversible and public, so it never
+# happens as a side effect of a push or a merge — someone has to come here
+# and click it.
+#
+# The normal flow:
+#   1. PRs land on main with changesets  ─┐
+#   2. Version workflow opens "chore: version packages"
+#   3. You merge that PR (versions + changelogs land on main)
+#   4. You run THIS workflow to publish those versions to npm
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — resolve what would publish, but do not publish'
+        type: boolean
+        default: true
+      confirm:
+        description: 'Type "publish" to confirm a real publish (ignored for dry runs)'
+        type: string
+        default: ''
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  # Same gates as CI. A hard `needs:` dependency, not a parallel job, so a
+  # publish cannot start against a commit whose checks have not passed.
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format
+      - run: pnpm test
+      - run: pnpm benchmark
+
+  publish:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # required for npm provenance attestation
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Check preconditions
+        run: |
+          if [ "$DRY_RUN" != "true" ]; then
+            if [ "${{ inputs.confirm }}" != "publish" ]; then
+              echo "::error::Refusing to publish: type 'publish' in the confirm field."
+              exit 1
+            fi
+            if [ "$HAS_NPM_TOKEN" != "true" ]; then
+              echo "::error::NPM_TOKEN is not set — cannot publish."
+              echo "::error::Add the secret in Settings → Secrets → Actions, then re-run."
+              exit 1
+            fi
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Publishing with pending changesets would ship versions that were never
+      # written to package.json. Merge the version PR first.
+      - name: Refuse to publish with pending changesets
+        run: |
+          if ls .changeset/*.md >/dev/null 2>&1 \
+             && [ "$(ls .changeset/*.md | grep -v README | wc -l)" -gt 0 ]; then
+            echo "::error::Pending changesets exist — merge the version PR first."
+            ls .changeset/*.md
+            exit 1
+          fi
+          echo "No pending changesets. Versions on main are what will publish."
+
+      # `changeset publish` ships every non-private package whose version is not
+      # already on the registry. Several packages are still stubs that export
+      # nothing but a VERSION constant, so list what is about to go out and flag
+      # anything still sitting at 0.0.0.
+      - name: What would publish
+        run: |
+          echo "Package versions on this commit:"
+          stubs=0
+          for f in packages/*/package.json; do
+            line=$(node -e "const p=require('./$f'); if(!p.private) console.log(p.name+'@'+p.version)")
+            [ -z "$line" ] && continue
+            case "$line" in
+              *@0.0.0)
+                echo "  $line   <-- still 0.0.0"
+                stubs=$((stubs+1))
+                ;;
+              *) echo "  $line" ;;
+            esac
+          done
+          if [ "$stubs" -gt 0 ]; then
+            echo "::warning::$stubs package(s) are still at 0.0.0 and may be unimplemented stubs."
+            echo "::warning::Mark a package \"private\": true to keep it off npm until it is real."
+          fi
+
+      - name: Validate npm auth
+        if: env.DRY_RUN != 'true'
+        run: npm whoami --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm
+        if: env.DRY_RUN != 'true'
+        run: pnpm changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Push git tags
+        if: env.DRY_RUN != 'true'
+        run: git push --follow-tags
+
+      - name: Dry run summary
+        if: env.DRY_RUN == 'true'
+        run: |
+          echo "::notice::DRY RUN — nothing was published."
+          echo "::notice::To publish for real: re-run with dry_run unchecked and confirm='publish'."

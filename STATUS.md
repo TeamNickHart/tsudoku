@@ -4,7 +4,18 @@
 > and what's next. CLAUDE.md holds durable conventions; this file holds the
 > moving parts. Update it as things land.
 
-**Last updated:** 2026-09-15 · **Branch:** `main` @ `cbee346`
+**Last updated:** 2026-09-19
+
+---
+
+## Current Focus
+
+**Next up:** backlog #1 — fix `applyHint` so it can apply an `EliminationHint`.
+It's the hard gate on all of Phase 2.
+
+**In flight:** nothing blocking. Release plumbing is done (see Recent Progress).
+
+**Deliberately parked:** Phase 3/4 techniques, ML training, React Native.
 
 ---
 
@@ -221,12 +232,44 @@ An AI layer on top is optional polish.
 - **`Solver.getNextHint` re-runs all producers from scratch** on every call, and
   a full solve calls it ~53 times. That's the 1.8ms/puzzle figure — fine for
   now, worth knowing before optimizing.
-- **Nothing is published to npm yet, deliberately.** `NPM_TOKEN` is unset, so
-  the release workflow opens version PRs but does not publish. Set the secret
-  when you're ready for a first release; the auth check and publish step
-  re-enable themselves. Note that the changesets action falls back to npm OIDC
-  trusted publishing when no token is present, so `publish` is gated explicitly
-  rather than left on.
+- **Nothing is published to npm yet, deliberately.** `NPM_TOKEN` is unset and
+  publishing is a manual workflow (`publish.yml`), so nothing reaches npm
+  without a deliberate click. See RELEASE.md. Note `changeset publish` ships
+  _every_ non-private package — four of the five are still stubs, so consider
+  marking them `"private": true` before a first release.
 - **`PLAN.md` describes CI jobs that don't exist** (`coverage`, nyc, Codecov)
   and an `apps/showcase` that was never created. Treat it as historical intent,
   not a description of the repo.
+
+---
+
+## Recent Progress
+
+Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-19
+
+- **Release process reworked into two workflows.** `version.yml` (automatic)
+  opens version PRs and never publishes; `publish.yml` (manual dispatch only)
+  publishes, behind a dry-run default, a typed confirmation, and the quality
+  gates as a hard `needs:` dependency. npm publishing stays off until
+  `NPM_TOKEN` is deliberately set.
+- **CI and release moved to Node 24** (#5). Actions had begun warning that Node
+  20 is deprecated on its runners, and local dev was already on 24. `engines`
+  intentionally stays at `>=20` — that's a statement about consumers, not CI.
+
+### 2026-09-16
+
+- **Phase 1 merged to main** (#1) after six months unmerged — 607/607 SE parity.
+- **Three pre-existing CI failures fixed**, all hidden by the hiatus:
+  - `pnpm format` was failing on the vendored SE submodule (CI never saw it,
+    since CI checks out without submodules).
+  - The Release workflow had failed on _every_ push since March: `npm whoami`
+    ran unconditionally with no `NPM_TOKEN` set (#2).
+  - Changesets was broken repo-wide — `.changeset/config.json` ignored a
+    `showcase` package that never existed, so even `changeset status` threw.
+    Fixing it also revealed the action was attempting **OIDC trusted publishing**
+    on every push to main; only the config error had been stopping it (#4).
+- **Docs refocused** around the teaching-app goal (#3): STATUS.md created,
+  README rewritten, CLAUDE.md corrected, PORTING.md's contradiction of the
+  Cardinal Rule resolved.
