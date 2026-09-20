@@ -1,4 +1,4 @@
-import { CELL_COUNT, SIZE, createGrid } from '@tsudoku/core';
+import { CELL_COUNT, SIZE, boxOf, colOf, createGrid, rowOf } from '@tsudoku/core';
 import type { Grid } from '@tsudoku/core';
 import { solutionString } from '@tsudoku/solver';
 import type {
@@ -27,7 +27,35 @@ export class InvalidPuzzleError extends Error {
  * assertions below are safe for that reason and are not repeated per line.
  */
 
-const EMPTY_NOTES: CellNotes = { included: [], excluded: [] };
+const EMPTY_NOTES: CellNotes = { included: [], excluded: [], auto: [] };
+
+/**
+ * Cells sharing a row, column or box with the given cell.
+ *
+ * Computed here rather than via `toGrid`, which would mean deriving a whole
+ * Grid on every placement just to read a peer list that never changes.
+ */
+const PEERS: readonly (readonly number[])[] = (() => {
+  const all: number[][] = [];
+  for (let i = 0; i < CELL_COUNT; i++) {
+    const row = rowOf(i);
+    const col = colOf(i);
+    const box = boxOf(row, col);
+    const peers: number[] = [];
+    for (let j = 0; j < CELL_COUNT; j++) {
+      if (j === i) continue;
+      if (rowOf(j) === row || colOf(j) === col || boxOf(rowOf(j), colOf(j)) === box) {
+        peers.push(j);
+      }
+    }
+    all.push(peers);
+  }
+  return all;
+})();
+
+function peerIndices(cell: number): readonly number[] {
+  return PEERS[cell] ?? [];
+}
 
 function isBlank(ch: string): boolean {
   return ch === '.' || ch === '0';
@@ -81,9 +109,16 @@ export function isGiven(state: GameState, cell: number): boolean {
 }
 
 function withNote(notes: CellNotes, kind: NoteKind, digits: readonly number[]): CellNotes {
-  return kind === 'included'
-    ? { included: digits, excluded: notes.excluded }
-    : { included: notes.included, excluded: digits };
+  if (kind === 'excluded') {
+    return { included: notes.included, excluded: digits, auto: notes.auto };
+  }
+  // Touching an included note by hand makes it the player's, so it drops out
+  // of `auto` and stops being eligible for silent auto-clearing.
+  return {
+    included: digits,
+    excluded: notes.excluded,
+    auto: notes.auto.filter((d) => digits.includes(d)),
+  };
 }
 
 /**
@@ -103,9 +138,24 @@ function reduce(state: GameState, move: Move): GameState {
     case 'setValue': {
       const entries = [...state.entries];
       entries[move.cell] = move.digit;
-      // Entering a value clears that cell's notes — they described an unknown.
       const notes = [...state.notes];
+      // Entering a value clears that cell's notes — they described an unknown.
       notes[move.cell] = EMPTY_NOTES;
+
+      // Placing a digit makes it impossible in every peer, so an *auto* note
+      // for it there is now obsolete bookkeeping and goes quietly. A note the
+      // player wrote by hand is deliberately left alone: it will show as stale,
+      // which is the point — see the note on CellNotes.auto.
+      for (const peer of peerIndices(move.cell)) {
+        const peerNotes = notes[peer]!;
+        if (!peerNotes.auto.includes(move.digit)) continue;
+        notes[peer] = {
+          included: peerNotes.included.filter((d) => d !== move.digit),
+          excluded: peerNotes.excluded,
+          auto: peerNotes.auto.filter((d) => d !== move.digit),
+        };
+      }
+
       return { ...state, entries, notes };
     }
     case 'clearValue': {
@@ -158,7 +208,9 @@ function reduce(state: GameState, move: Move): GameState {
       const cellNotes = state.notes[move.cell]!;
       const sorted = [...move.digits].sort((a, b) => a - b);
       const notes = [...state.notes];
-      notes[move.cell] = { included: sorted, excluded: cellNotes.excluded };
+      // These came from the engine, so they are auto notes — eligible for
+      // silent removal when a later placement invalidates them.
+      notes[move.cell] = { included: sorted, excluded: cellNotes.excluded, auto: sorted };
       return { ...state, notes };
     }
     case 'clearNotes': {
@@ -430,6 +482,7 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
     notes,
     isError,
     staleNotes,
+    autoNotes: notes.auto,
     isSelected: state.selected.includes(index),
     roles,
     noteRoles,

@@ -51,6 +51,19 @@ export interface CellNotes {
   readonly included: readonly number[];
   /** Digits the player has ruled out. Sorted ascending. Rendered struck-through. */
   readonly excluded: readonly number[];
+  /**
+   * Which of `included` came from Auto-notes rather than from the player.
+   *
+   * The distinction drives auto-clearing. When a value is placed, an auto
+   * note for that digit in a peer cell is removed silently — it was derived
+   * bookkeeping and the placement made it obsolete. A note the player wrote
+   * themselves is kept and shown stale instead, because noticing that your own
+   * reasoning has been overtaken is the teaching moment.
+   *
+   * Per digit, not per cell: the same cell can hold auto notes and hand-written
+   * ones side by side. Always a subset of `included`.
+   */
+  readonly auto: readonly number[];
 }
 
 /** Which note set a note action targets. */
@@ -192,6 +205,14 @@ export interface CellView {
   readonly isError: boolean;
   /** Included notes that are no longer possible given the current board. */
   readonly staleNotes: readonly number[];
+  /**
+   * Included notes that came from Auto-notes rather than the player.
+   *
+   * Rendered slightly lighter, so it is visible which notes the app maintains
+   * for you and which are your own — they behave differently when a value is
+   * placed, and identical-looking notes behaving differently reads as a bug.
+   */
+  readonly autoNotes: readonly number[];
   /** True when this cell is in the current selection. */
   readonly isSelected: boolean;
   /** Roles decorating the cell as a whole. */

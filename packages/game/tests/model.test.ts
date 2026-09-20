@@ -263,3 +263,97 @@ describe('fillNotes (auto-notes)', () => {
     expect(game.notes[2]!.included.length).toBeGreaterThan(0);
   });
 });
+
+describe('auto-clearing notes on placement', () => {
+  /** The first empty cell, and the digit that truly belongs there. */
+  function firstEmpty(game: ReturnType<typeof createGame>): { cell: number; digit: number } {
+    const cell = game.entries.findIndex((v) => v === null);
+    return { cell, digit: Number(game.solution[cell]) };
+  }
+
+  it('silently removes the placed digit from auto notes in peers', () => {
+    let game = fillNotes(createGame(EASY));
+    const { cell, digit } = firstEmpty(game);
+
+    const notingBefore = game.notes.filter((n) => n.included.includes(digit)).length;
+    expect(notingBefore).toBeGreaterThan(1);
+
+    game = applyMove(game, { kind: 'setValue', cell, digit });
+
+    // No peer should still be carrying an impossible auto note.
+    expect(boardView(game).filter((v) => v.staleNotes.length > 0)).toHaveLength(0);
+  });
+
+  it('leaves other digits in peer notes alone', () => {
+    let game = fillNotes(createGame(EASY));
+    const { cell, digit } = firstEmpty(game);
+    const peer = game.notes.findIndex(
+      (n, i) => i !== cell && n.included.includes(digit) && n.included.length > 1,
+    );
+    const otherDigits = game.notes[peer]!.included.filter((d) => d !== digit);
+
+    game = applyMove(game, { kind: 'setValue', cell, digit });
+
+    for (const d of otherDigits) {
+      expect(game.notes[peer]!.included).toContain(d);
+    }
+  });
+
+  it('keeps a hand-written note and shows it stale instead', () => {
+    // The distinction that matters: the app tidies its own bookkeeping, but
+    // does not quietly correct the player's reasoning.
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 4, note: 'included' });
+
+    const rowPeer = [0, 1, 3, 4, 5, 6, 7, 8].find((i) => i !== 2 && game.entries[i] === null)!;
+    game = applyMove(game, { kind: 'setValue', cell: rowPeer, digit: 4 });
+
+    expect(game.notes[2]!.included).toContain(4);
+    expect(cellView(game, 2).staleNotes).toContain(4);
+  });
+
+  it('treats a hand-touched auto note as the player own', () => {
+    let game = fillNotes(createGame(EASY));
+    const { cell, digit } = firstEmpty(game);
+    const peer = game.notes.findIndex((n, i) => i !== cell && n.included.includes(digit));
+
+    // Toggling it off and on again makes it a deliberate note.
+    game = applyMove(game, { kind: 'toggleNote', cell: peer, digit, note: 'included' });
+    game = applyMove(game, { kind: 'toggleNote', cell: peer, digit, note: 'included' });
+    expect(game.notes[peer]!.auto).not.toContain(digit);
+
+    game = applyMove(game, { kind: 'setValue', cell, digit });
+    expect(game.notes[peer]!.included).toContain(digit);
+  });
+
+  it('restores cleared notes on undo', () => {
+    const game = fillNotes(createGame(EASY));
+    const { cell, digit } = firstEmpty(game);
+    const before = JSON.stringify(game.notes);
+
+    const placed = applyMove(game, { kind: 'setValue', cell, digit });
+    expect(JSON.stringify(placed.notes)).not.toBe(before);
+
+    expect(JSON.stringify(undo(placed).notes)).toBe(before);
+  });
+
+  it('marks auto-filled notes as auto and hand-written ones as not', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 7, note: 'included' });
+    expect(game.notes[2]!.auto).not.toContain(7);
+
+    game = fillNotes(game, [3]);
+    expect(game.notes[3]!.auto).toEqual(game.notes[3]!.included);
+  });
+
+  it('leaves strikes alone', () => {
+    // A strike is a deliberate annotation; a placement makes it redundant
+    // rather than wrong, so it stays.
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 4, note: 'excluded' });
+    const rowPeer = [0, 1, 3, 4, 5, 6, 7, 8].find((i) => i !== 2 && game.entries[i] === null)!;
+    game = applyMove(game, { kind: 'setValue', cell: rowPeer, digit: 4 });
+
+    expect(game.notes[2]!.excluded).toContain(4);
+  });
+});
