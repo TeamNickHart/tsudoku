@@ -13,9 +13,21 @@
 **Stage 1 is done.** The app is playable and deployed: enter values, take
 notes, undo, ask for a hint and get the engine's real technique explanation.
 
-**Next up: stage 2 — make it teach.** The gate is `applyHint`, because every
-Phase 2 technique is elimination-based and `applyHint` still cannot apply an
-elimination. See [Stage 2](#stage-2--make-it-teach).
+**Stage 2.1 and 2.2 are done** and awaiting review in two stacked PRs:
+
+- **#12** — `applyHint` applies eliminations; Pointing (2.6) and Claiming (2.8)
+  ported from `Locking.java`; auto-notes (`fillNotes`).
+- **#13** — drag to select, tap to toggle (stacked on #12).
+
+**Next up: stage 2.3 — the generator**, which Phase 2 needs for a validation
+corpus. `phase2.jsonl` is still empty, so Pointing and Claiming are registered
+but not benchmark-validated (see the silent-pass problem below).
+
+**Open question, deliberately unresolved:** whether a filled cell should lock
+once entered. Options weighed: lock fully (undo is the only way back), block
+overwrite but allow erase, or leave freely editable. The tension is that
+locking fights exploration — recovering from a wrong guess would mean
+discarding correct moves made since.
 
 **Deployed:** `tsudoku-play` on Vercel (Root Directory `apps/web`). Custom
 domain `play.tsudoku.dev` deferred until tsudoku.dev moves to Cloudflare.
@@ -308,6 +320,27 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-20 (evening)
+
+- **Phase 2 is open.** `applyHint` now applies eliminations — it preserves each
+  cell's candidate mask instead of recomputing from values, which was right for
+  a placement and exactly wrong for an elimination.
+- **Pointing and Claiming ported** from SE's `Locking.java`. Validated beyond
+  unit tests: across all 607 corpus puzzles the two producers proposed **8,756
+  eliminations**, and checked against brute-forced solutions, **none** removed a
+  digit that actually belonged.
+- **Auto-notes** (`fillNotes`) — fills empty cells with the engine's real
+  candidates, one history entry per cell so it undoes gradually.
+- **Drag to select, tap to toggle.** Two bugs found only by driving a browser:
+  `pointerenter` never fires during a touch drag (implicit pointer capture), so
+  the obvious implementation works with a mouse and silently fails on a phone;
+  and listeners registered in an effect dropped the opening moves of a fast
+  drag, since effects run after React commits.
+- Confirmed the web app is **already good on mobile** at 375x812 — tap to
+  select, tap a digit to enter. React Native deferred: the architecture is
+  ready, the design isn't settled, and building both now would double
+  iteration cost during the phase where the UI is still being discovered.
 
 ### 2026-09-20
 
