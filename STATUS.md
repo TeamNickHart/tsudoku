@@ -270,6 +270,24 @@ Upstash Redis is the right product there. Tinybird is a reasonable fit for the
 event sink if this grows into real analytical querying; for errors alone it is
 heavier than needed.
 
+**Access is already gated today**, and it was by default. `tsudoku-play` has
+Vercel Authentication enabled: an unauthenticated request for the page _or_ for
+the JS bundle redirects to Vercel's login rather than serving bytes. Verified
+by requesting `/assets/index-*.js` directly and landing on the login page.
+
+That is worth knowing because the obvious alternative does not work. The app is
+a static SPA, so a passphrase checked in the client is not a gate: Vercel
+injects env vars at build time, so the value is baked into the bundle and
+readable in devtools — and the bundle, engine and all 30 puzzles have already
+been downloaded before any prompt could render. A client-side check is an
+honest "not public yet" sign, not access control. Deployment Protection is
+the only option that stops bytes reaching an unauthorized browser, and it is a
+project setting rather than code.
+
+The practical consequence: sharing with an invited player before 2.7 means
+either adding them to the Vercel team, or switching to shared-password
+protection (Pro plan), or generating a share link.
+
 **Sequencing.** After Phase 2 and the generator. Instrumenting a game whose
 shape is still changing means designing a schema twice.
 
