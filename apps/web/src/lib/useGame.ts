@@ -19,6 +19,7 @@ import {
   resetGame,
   selectCell,
   setDecorations,
+  setSelection,
   toggleCellSelection,
   undo,
 } from '@tsudoku/game';
@@ -38,6 +39,7 @@ export type InputMode = 'value' | 'note-included' | 'note-excluded';
 type Action =
   | { type: 'newGame'; puzzle: string }
   | { type: 'select'; cell: number; additive: boolean }
+  | { type: 'setSelection'; cells: readonly number[] }
   | { type: 'clearSelection' }
   | { type: 'digit'; digit: number; mode: InputMode }
   | { type: 'erase' }
@@ -57,6 +59,9 @@ function reducer(state: GameState, action: Action): GameState {
       return action.additive
         ? toggleCellSelection(state, action.cell)
         : selectCell(state, action.cell);
+
+    case 'setSelection':
+      return setSelection(state, action.cells);
 
     case 'clearSelection':
       return selectCell(state, null);

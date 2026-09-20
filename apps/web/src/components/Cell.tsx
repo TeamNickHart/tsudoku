@@ -40,10 +40,21 @@ interface CellProps {
   readonly isPeer: boolean;
   /** True when this cell holds the same digit as the selected cell. */
   readonly isSameDigit: boolean;
-  readonly onSelect: (index: number, additive: boolean) => void;
+  /** Pointer handlers from useDragSelect — drag to paint, tap to toggle. */
+  readonly onPointerDown: (e: React.PointerEvent) => void;
+  readonly onPointerEnter: () => void;
+  /** Keyboard activation, which has no drag equivalent. */
+  readonly onActivate: (index: number, additive: boolean) => void;
 }
 
-export function Cell({ view, isPeer, isSameDigit, onSelect }: CellProps): JSX.Element {
+export function Cell({
+  view,
+  isPeer,
+  isSameDigit,
+  onPointerDown,
+  onPointerEnter,
+  onActivate,
+}: CellProps): JSX.Element {
   const { index, value, lock, notes, isError, staleNotes, isSelected, roles, noteRoles } = view;
 
   const row = Math.floor(index / SIZE);
@@ -54,7 +65,19 @@ export function Cell({ view, isPeer, isSameDigit, onSelect }: CellProps): JSX.El
       type="button"
       aria-label={`Row ${row + 1}, column ${col + 1}${value === null ? ', empty' : `, ${value}`}`}
       aria-pressed={isSelected}
-      onClick={(e) => onSelect(index, e.shiftKey || e.metaKey || e.ctrlKey)}
+      data-cell-index={index}
+      onPointerDown={onPointerDown}
+      onPointerEnter={onPointerEnter}
+      onKeyDown={(e) => {
+        // Pointer events do not fire for keyboard activation, so Enter/Space
+        // are handled separately rather than relying on the click default.
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onActivate(index, e.shiftKey || e.metaKey || e.ctrlKey);
+        }
+      }}
+      // Stop touch-drag from scrolling the page while painting a selection.
+      style={{ touchAction: 'none' }}
       className={cn(
         'relative flex aspect-square items-center justify-center select-none',
         'transition-colors duration-75',
