@@ -40,6 +40,27 @@ jobs:
           path: packages/*/dist
           retention-days: 1
 
+  # Builds only the web app and its dependencies, from a clean tree. `pnpm build`
+  # builds everything, which hides a missing workspace dependency in a filtered
+  # build — exactly the failure that broke the first Vercel deploy: a filter that
+  # skipped @tsudoku/core meant its dist/ (and therefore its .d.ts) never
+  # existed, and tsc could not resolve the import.
+  build-web:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build web app the way Vercel does
+        run: npx turbo build --filter=@tsudoku/web
+      - name: Verify the deploy artifact exists
+        run: test -f apps/web/dist/index.html
+
   typecheck:
     needs: build
     runs-on: ubuntu-latest
@@ -132,7 +153,7 @@ jobs:
 
   ci-success:
     if: always()
-    needs: [build, typecheck, lint, format, test, benchmark]
+    needs: [build, build-web, typecheck, lint, format, test, benchmark]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
