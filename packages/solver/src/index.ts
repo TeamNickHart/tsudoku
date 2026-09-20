@@ -4,9 +4,10 @@ export const VERSION = '0.0.0';
 
 export {
   bruteForceSolve,
+  solveRandom,
   solutionString,
   countSolutions,
   hasUniqueSolution,
 } from './BruteForceAnalysis.js';
-export type { SolutionCount } from './BruteForceAnalysis.js';
+export type { SolutionCount, Rng } from './BruteForceAnalysis.js';
 export { hasNoDoubles, findDuplicate } from './NoDoubles.js';

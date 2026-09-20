@@ -260,6 +260,54 @@ exists rather than needing new plumbing.
 5. Port `Symmetry` for better-looking puzzles
 6. Wire `tsudoku gen` in the CLI
 
+### 2.8 Render performance — **confirmed, not yet fixed**
+
+Values entered deep into a game lag noticeably: "enter a value and a fraction
+of a second later the view updates". Measured once in a browser at **332ms**
+for a single entry on a fully-noted board, against ~11ms for the same action on
+an empty one. The spike was not reproducible on later attempts from a hidden
+browser pane, where `requestAnimationFrame` does not fire and React batches
+updates out of reach of a synchronous timer — so the number is real but the
+measurement method needs to be better before and after any fix.
+
+**The game layer is not the cause.** Profiled directly: `boardView` is
+0.06–0.09ms, `toGrid` 0.045ms, `digitCounts` 0.007ms, and all of them stay flat
+as history grows (102 moves made no difference). Undo, which replays the whole
+history, is 0.064ms.
+
+**The likely cause is React, and it is confirmable by inspection:** there is
+**no memoization anywhere** in the web app. No `React.memo` on `Cell` or
+`Board`, so every state change re-renders all 81 cells, each noted cell
+rebuilding a 9-element note grid. `useDragSelect`'s `cellProps(index)` also
+returns a fresh object per cell per render, so even adding `memo` would not
+help until those handler identities are stable.
+
+**What to do:**
+
+1. Get a reliable measurement first — React DevTools Profiler, or
+   `performance.mark` around commits, with the pane visible. Fixing an
+   unmeasured performance problem is how you end up with memoization that
+   costs more than it saves.
+2. `React.memo` on `Cell`, keyed on the `CellView` it receives.
+3. Stabilise handler identity in `useDragSelect` so memo can actually bail out.
+4. Re-measure. Only keep what demonstrably helped.
+
+### 2.9 CI: skip irrelevant work for docs-only changes
+
+Every PR runs the full suite — build, typecheck, lint, format, 3 test shards,
+the SE benchmark, and a web build — even when the change touches only
+`docs/`, `README.md` or `STATUS.md`. That is slow and wasteful for the many
+documentation PRs this project produces.
+
+Markdown changes should still be validated (prettier, and link checking would
+be a real addition), but there is no reason to re-run the engine benchmark for
+a typo fix.
+
+The mechanism is `dorny/paths-filter` or GitHub's own `paths`/`paths-ignore` on
+the workflow. The wrinkle worth knowing: `ci-success` is a required status
+check, so skipped jobs must still report success or every docs PR blocks on a
+check that never runs. That is the part to get right, not the filtering itself.
+
 ### 2.4 The tutor layer
 
 This is where the decoration model pays off. The machinery already exists:
@@ -298,6 +346,9 @@ The model supports more than the UI exposes:
 5. Tutor layer + first lessons
 6. Notes UX and CLI, opportunistically
 7. Analytics and invite-only access (2.7) — last, and gated on wanting a backend
+
+Opportunistic, not blocking: render performance (2.8) and CI path filtering
+(2.9). Both are small and independent of the technique work.
 
 ### 2.7 Analytics and invite-only access — **backlogged, after Phase 2 + generator**
 
