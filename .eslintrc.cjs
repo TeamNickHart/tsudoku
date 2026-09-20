@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: ['./packages/*/tsconfig.json'],
+    project: ['./packages/*/tsconfig.json', './apps/*/tsconfig.json'],
     tsconfigRootDir: __dirname,
   },
   plugins: ['@typescript-eslint'],
@@ -42,7 +42,13 @@ module.exports = {
     '*.mjs',
     'vitest.config.ts',
     'tsup.config.ts',
+    'vite.config.ts',
+    'tailwind.config.ts',
+    'postcss.config.js',
     'benchmarks/',
     'docs/',
+    'apps/*/scripts/',
+    // Generated from the benchmark corpus — see apps/web/scripts.
+    'apps/web/src/data/corpus.ts',
   ],
 };

@@ -17,6 +17,8 @@
     "benchmark": "turbo benchmark",
     "benchmark:quick": "tsx benchmarks/runner.ts --phases=1",
     "benchmark:full": "tsx benchmarks/runner.ts",
+    "dev": "pnpm --filter @tsudoku/web dev",
+    "corpus:slice": "node apps/web/scripts/build-corpus-slice.mjs",
     "corpus:generate": "bash tools/se-reference/generate-corpus.sh",
     "puzzle:intake": "bash tools/se-reference/intake.sh",
     "puzzle:build-corpus": "bash tools/se-reference/build-corpus.sh",

@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Theme tokens.
+ *
+ * Every decoration role the game model can emit has a token here. That is the
+ * whole point of roles being semantic: the model says "this note was
+ * eliminated", and this file — and only this file — decides what that looks
+ * like. A new theme is a new block of variables, not a change to any component.
+ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 11%;
+
+    --primary: 222 47% 11%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Board: values */
+    --board-given: 222 47% 11%; /* fixed clues — heaviest */
+    --board-entry: 217 91% 60%; /* player entries — distinct from givens */
+    --board-error: 0 72% 51%;
+
+    /* Board: notes */
+    --board-note: 215 16% 47%;
+    --board-note-stale: 25 95% 53%; /* a note the board has ruled out */
+
+    /* Board: selection and adjacency */
+    --board-selected: 217 91% 60%;
+    --board-peer: 214 95% 93%;
+
+    /* Board: decoration roles from hints and tutorials */
+    --board-primary: 142 71% 45%;
+    --board-supporting: 48 96% 53%;
+    --board-eliminated: 0 72% 51%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 213 27% 84%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 20%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 20%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --board-given: 210 40% 98%;
+    --board-entry: 213 94% 68%;
+    --board-error: 0 84% 60%;
+
+    --board-note: 215 20% 65%;
+    --board-note-stale: 31 97% 62%;
+
+    --board-selected: 213 94% 68%;
+    --board-peer: 217 33% 24%;
+
+    --board-primary: 142 69% 58%;
+    --board-supporting: 48 96% 60%;
+    --board-eliminated: 0 84% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+}
