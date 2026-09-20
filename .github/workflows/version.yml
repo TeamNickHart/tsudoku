@@ -1,0 +1,77 @@
+name: Version
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: version-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Gate: all quality checks must pass before any release activity
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format
+      - run: pnpm test
+      - run: pnpm benchmark
+
+  # Opens/updates the version PR. Never publishes — see publish.yml.
+  version:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # This workflow NEVER publishes. `publish` is deliberately omitted, so the
+      # action only opens or updates the "chore: version packages" PR.
+      #
+      # That omission is load-bearing: the changesets action falls back to npm
+      # OIDC trusted publishing when no NPM_TOKEN is present, so passing a
+      # `publish` command here would make every push to main attempt a real
+      # publish. Publishing is irreversible and public, so it lives behind the
+      # manual gate in publish.yml instead.
+      - name: Create or update the version PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize
+        run: |
+          if [ "${{ steps.changesets.outputs.hasChangesets }}" = "true" ]; then
+            echo "::notice::Pending changesets found — version PR opened or updated."
+          else
+            echo "::notice::No pending changesets. Nothing to version."
+          fi
+          echo "::notice::To publish to npm, run the 'Publish' workflow manually."
