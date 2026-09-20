@@ -10,11 +10,11 @@
 
 ## Current Focus
 
-**Next up:** `@tsudoku/game` — the framework-free state layer — then a React
-web app to play against the existing corpus.
+**Next up:** `apps/web` — a React app to actually play the thing, against the
+existing 607-puzzle corpus.
 
-**In flight:** nothing blocking. Board geometry is centralised and brute-force
-analysis is ported, so game state can store a real `solution` field.
+**In flight:** nothing blocking. `@tsudoku/game` is done and framework-free,
+with a lint rule that fails the build if React ever leaks into it.
 
 **Deliberately parked:** Phase 3/4 techniques, ML training, React Native.
 
@@ -252,6 +252,24 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-09-19 (later still)
+
+- **`@tsudoku/game` built** — the framework-free state layer. Plain data, plain
+  reducer, no React. Holds the puzzle and solution as 81-char strings and
+  derives a `Grid` on demand: state is **815 bytes** where a serialized `Grid`
+  is **40,280**, and it round-trips through JSON intact.
+- **History is moves, not snapshots.** Undo replays from the givens, which keeps
+  history a plain serializable list and gives a complete move log for free —
+  useful later for "show me where I went wrong".
+- **Pencil marks stay separate from candidates**, as designed. `cellView`
+  exposes `staleMarks` — marks the board has since ruled out — which is exactly
+  the teaching moment a tutor wants to point at.
+- **A lint rule now enforces the boundary**: importing React (or react-dom or
+  react-native) inside `packages/game/src` is a build error, not a convention.
+  Verified it actually fires.
+- 35 tests, including one that solves a whole puzzle by following hints alone
+  and asserts no errors are ever introduced.
 
 ### 2026-09-19 (later)
 

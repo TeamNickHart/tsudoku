@@ -107,6 +107,25 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.3.5)(terser@5.46.0)
 
+  packages/game:
+    dependencies:
+      '@tsudoku/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tsudoku/solver':
+        specifier: workspace:*
+        version: link:../solver
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@25.3.5)(terser@5.46.0)
+
   packages/generator:
     dependencies:
       '@tsudoku/core':
