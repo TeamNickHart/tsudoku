@@ -375,6 +375,72 @@ take them. Worth doing anyway:
   artefact that does not obviously exist elsewhere. It is the most likely
   reason someone else would find this project.
 
+#### How many puzzles exist, and what to expect
+
+The counted answer: there are **6,670,903,752,021,072,936,960** valid completed
+grids (Felgenhauer & Jarvis, 2005), or **5,472,730,538** once symmetry is
+factored out. Puzzles — distinct minimal clue sets — are far more numerous
+still and have never been counted. Supply is not a constraint at any scale this
+project will reach.
+
+Difficulty, though, is severely lopsided. Measured over 800 generated puzzles,
+the per-rating hit rate and the time to bank 1000 of each:
+
+| SE  | Technique     | Hit rate | Generated per hit | Hours to 1000 |
+| --- | ------------- | -------- | ----------------- | ------------- |
+| 2.6 | Pointing      | 4.12%    | 24                | **0.7**       |
+| 4.2 | XYWing        | 4.62%    | 22                | **0.6**       |
+| 2.8 | Claiming      | 1.38%    | 73                | 2.0           |
+| 3.0 | NakedPair     | 0.88%    | 114               | 3.2           |
+| 3.4 | HiddenPair    | 0.75%    | 133               | 3.7           |
+| 4.4 | XYZWing       | 0.75%    | 133               | 3.7           |
+| 3.6 | NakedTriplet  | 0.25%    | 400               | 11.1          |
+| 3.2 | XWing         | 0.12%    | 800               | **22.2**      |
+| 3.8 | Swordfish     | 0.12%    | 800               | **22.2**      |
+| 4.0 | HiddenTriplet | 0.12%    | 800               | **22.2**      |
+
+At ~10 puzzles/second end to end, 1000 of _every_ Phase 2 rating is roughly
+**90 hours** of wall clock — a few unattended days, entirely feasible. But the
+last three ratings account for two thirds of that, and the rare-rating figures
+rest on a single observation each, so treat them as order-of-magnitude.
+
+Note the two **Phase 1 holes behave the same way**: 1.0 (full house) and 1.9
+(DirectClaiming) did not appear once in 800 puzzles. They are not missing
+because of an oversight in the original intake; they are simply rare.
+
+**1000 per level is more than needed.** ~100 per technique already satisfies
+the benchmark's purpose and the app's teaching levels. Beyond that the value is
+ML training data, which is gated behind other work anyway. A quota of 100–200
+reaches useful coverage in a few hours rather than days.
+
+#### Can generation target a specific technique?
+
+Yes, and it is the single highest-value improvement to this pipeline — it turns
+22 hours into minutes for the rare ratings.
+
+The trick is that **TSudoku can already detect these techniques itself**.
+Rather than generate blindly and ask SE afterwards, the daemon can filter
+_before_ paying for an SE call:
+
+1. Generate a candidate.
+2. Solve it locally with `DEFAULT_PRODUCERS`, recording which techniques fire.
+3. Discard immediately unless the wanted technique appears.
+4. Only then spend an SE rating call to confirm.
+
+The local solve is ~2ms against ~40ms for an SE round trip, so the filter is
+nearly free and rejects ~99% of candidates for a rare rating before the
+expensive step.
+
+The catch, and it is a real one: this only works for techniques TSudoku has
+implemented. XWing, Swordfish and HiddenTriplet — precisely the three rarest —
+are **not implemented yet**, so they cannot be pre-filtered until 2.4 lands.
+Which is a neat circularity: implementing them makes it cheap to generate the
+puzzles needed to validate them.
+
+A weaker but immediately available version: generate, solve locally, and reject
+anything the current producers solve _completely_. That alone removes the
+easy puzzles that dominate the sample.
+
 #### The actual constraint: distribution, not volume
 
 `phase2.jsonl` came out badly skewed — 33 at 2.6 and 37 at 4.2, but **one
