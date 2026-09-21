@@ -146,3 +146,6 @@ tools/se-reference/*.jar
 
 # Intake pipeline processed files
 data/puzzles/unverified/processed/
+
+# Harvest lock directories
+.*.lock
