@@ -413,6 +413,17 @@ the benchmark's purpose and the app's teaching levels. Beyond that the value is
 ML training data, which is gated behind other work anyway. A quota of 100–200
 reaches useful coverage in a few hours rather than days.
 
+#### Corpus work runs locally, not in CI
+
+Deliberately. The SE oracle needs a JVM and `SudokuExplainer.jar`, which is
+gitignored and downloaded per contributor — CI would have to fetch it on every
+run. More to the point, this is hours of compute against a clock someone pays
+for, producing data that gets committed once. A laptop that is idle anyway is
+both cheaper and faster.
+
+CI's job stays what it is: verify the committed corpus still passes at 95%+.
+Generating the corpus is a local chore; validating it is CI's.
+
 #### Can generation target a specific technique?
 
 Yes, and it is the single highest-value improvement to this pipeline — it turns
