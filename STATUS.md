@@ -17,11 +17,19 @@ notes, undo, ask for a hint and get the engine's real technique explanation.
 (2.6) and Claiming (2.8) are ported from `Locking.java`; auto-notes fill from
 the engine's candidates and are cleared from peers when a value is placed.
 
-**Next up: stage 2.3 — the generator.** Planned in detail below. The first step
-is a small gap in the existing port: `BruteForceAnalysis` omitted SE's
-randomised digit order, so it always solves ascending and would generate the
-same grid every time. Without that there is no random solution to carve a
-puzzle from.
+**Stage 2.3 is done.** The generator is ported and `phase2.jsonl` holds 105
+SE-rated puzzles, so Pointing and Claiming are finally validated against the
+oracle — **33/33 and 11/11, both 100%**. They had been shipping with no
+validation at all.
+
+**Next up: stage 2.4 — the remaining Phase 2 techniques.** NakedSet, XWing,
+HiddenSet, Fisherman, XY/XYZ-Wing. `Locking.ts` is a working template, and
+`applyHint` already supports eliminations.
+
+Worth knowing before starting: the corpus is thin exactly where those
+techniques live — **one puzzle each at 3.2 (XWing), 3.8 (Swordfish) and 4.0
+(HiddenTriplet)**. Implementing them is only half the job; they cannot be
+validated until the corpus covers them. See 2.10.
 
 **Open questions, deliberately unresolved:**
 
@@ -307,6 +315,76 @@ The mechanism is `dorny/paths-filter` or GitHub's own `paths`/`paths-ignore` on
 the workflow. The wrinkle worth knowing: `ci-success` is a required status
 check, so skipped jobs must still report success or every docs PR blocks on a
 check that never runs. That is the part to get right, not the filtering itself.
+
+### 2.10 Corpus at scale — background generation, laddering, publishing
+
+The harvest that filled `phase2.jsonl` makes the shape of this clear. Recorded
+now because two of the three ideas need care.
+
+#### Background generation — straightforward, do it
+
+A long-running local process generating and rating puzzles is the obvious way
+to reach hundreds per difficulty. `harvest.sh` already does the work; it needs
+a wrapper that runs continuously, appends to `data/puzzles/verified/`, and
+dedupes. A `launchd` job is the macOS-native option.
+
+Throughput measured: generation is ~0.1s per puzzle, SE rating ~0.04s, and the
+yield into a given phase band is about 12%. So roughly **1000 generated per
+hour of wall clock**, giving ~120 Phase 2 puzzles per hour unattended. Reaching
+"hundreds at every level" is a weekend, not a project.
+
+The real constraint is **not** throughput but distribution — see below.
+
+#### Laddering one solution into several puzzles — appealing, but the premise is wrong
+
+The idea: carve an easy puzzle, remove more clues for a medium, more again for
+hard. It would be a large efficiency win, since the expensive part (the
+uniqueness check) is shared.
+
+**Measured, difficulty is not monotonic in clue count.** From the sample of 20:
+
+| Clues | Ratings observed  |
+| ----- | ----------------- |
+| 22    | 5.6, 7.1          |
+| 23    | **1.5**, 2.8      |
+| 24    | **1.5**, 6.6, 6.7 |
+| 26    | **1.2**, 7.1      |
+
+A 26-clue puzzle rated 1.2 and another rated 7.1. Removing clues _tends_ to
+make a puzzle harder, but which specific clues you remove matters far more than
+how many — a puzzle stays easy while it still yields to singles, and jumps
+sharply once it does not.
+
+So the ladder cannot assume "fewer clues = next difficulty up". What _would_
+work is generating a ladder speculatively and **rating every rung**, keeping
+whichever rungs land in bands that need filling. That still shares the
+generation cost and is worth doing — it just cannot skip the SE rating step,
+which was the appeal.
+
+#### Publishing the corpus — cheap, and the most externally valuable thing here
+
+The puzzles are already in the repo under `benchmarks/corpus/`, so anyone can
+take them. Worth doing anyway:
+
+- A documented, stable download (GitHub Releases is free and versioned; a CDN
+  bucket is unnecessary at this size — 105 puzzles is ~12KB)
+- A **licence decision**. The Open Decisions list in CLAUDE.md already asks
+  whether the corpus should be CC0. It should be settled before publishing,
+  not after.
+- SE-verified puzzles _with their technique labels_ is a genuinely useful
+  artefact that does not obviously exist elsewhere. It is the most likely
+  reason someone else would find this project.
+
+#### The actual constraint: distribution, not volume
+
+`phase2.jsonl` came out badly skewed — 33 at 2.6 and 37 at 4.2, but **one
+puzzle each at 3.2 (XWing), 3.8 (Swordfish) and 4.0 (HiddenTriplet)**. Random
+generation simply does not produce those ratings often.
+
+More volume alone will not fix this; it will produce more 2.6s and 4.2s at the
+same ratio. Filling the thin ratings needs targeted work — generate, rate,
+discard anything already well covered — which is exactly what a background
+process should be doing rather than blind accumulation.
 
 ### 2.4 The tutor layer
 
