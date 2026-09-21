@@ -462,6 +462,41 @@ What is missing is _sequencing_ — a lesson is an ordered list of steps, each
 with decorations and a caption, advanced by the learner. Deterministic; no AI
 needed at runtime.
 
+### 2.4a Teaching order is not SE rating order
+
+A data point from the only player this project currently has: X-Wing, XY-Wing
+and XYZ-Wing are comfortable; Swordfish is the hard one; the "rectangle"
+techniques are shaky.
+
+That **contradicts SE's ordering**. SE puts Swordfish at 3.8, _easier_ than
+XY-Wing at 4.2. The human experience is the reverse, and the reason is
+structural rather than personal: **SE's rating measures search cost for a
+solver, not cognitive load for a person.** A Swordfish spans three rows and
+three columns and has to be held in the head at once; an XY-Wing is three cells
+with a clear local story.
+
+So the teaching sequence should not simply be `TECHNIQUE_DIFFICULTY` sorted
+ascending. Some specific consequences:
+
+- **Swordfish should be taught as "X-Wing, but 3x3"**, not as an unrelated
+  technique at its own level. Same logic, more spatial load — and if X-Wing
+  already clicks, that framing does most of the work. Jellyfish (5.2) is the
+  same pattern again at 4x4 and belongs in the same lesson family.
+- **"Rectangle" is doing damage as a word.** Pointing and Claiming are _not_
+  rectangles — they are locked candidates, a digit confined to one line within
+  a box or one box within a line. Purely linear. Unique Rectangle (Phase 3) is
+  an actual rectangle _and_ a different kind of argument: it reasons from "a
+  valid puzzle has exactly one solution, so this pattern cannot occur", which
+  is uniqueness reasoning rather than constraint reasoning. Lessons should name
+  that difference rather than let the shared word imply a shared idea.
+- **Lesson order wants its own data.** This is exactly the "human difficulty
+  vs SE rating" signal deprioritised in 2.7, and one player has now supplied a
+  point of it. Worth revisiting once there are a handful of players — where
+  people actually stall is more useful than where SE says they should.
+
+Nothing here blocks 2.4. It changes how the techniques are _presented_ once
+the tutor layer exists, not whether they are ported.
+
 ### 2.5 Notes UX
 
 The model supports more than the UI exposes:
