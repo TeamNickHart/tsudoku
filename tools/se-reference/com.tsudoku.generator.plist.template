@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd job for the background puzzle generator.
+
+  Install:
+    sed "s|REPO_ROOT|$PWD|g" tools/se-reference/com.tsudoku.generator.plist.template \
+      > ~/Library/LaunchAgents/com.tsudoku.generator.plist
+    launchctl load ~/Library/LaunchAgents/com.tsudoku.generator.plist
+
+  Stop:
+    launchctl unload ~/Library/LaunchAgents/com.tsudoku.generator.plist
+
+  Nice +10 and LowPriorityIO keep it out of the way of interactive work — this
+  is a background chore, not something worth a slow laptop for.
+-->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.tsudoku.generator</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>REPO_ROOT/tools/se-reference/generate-daemon.sh</string>
+      <string>200</string>
+      <string>4</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>REPO_ROOT</string>
+
+    <!-- Run every 6 hours rather than continuously: the daemon exits once all
+         ratings hit quota, and a periodic run picks up a raised quota. -->
+    <key>StartInterval</key>
+    <integer>21600</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>Nice</key>
+    <integer>10</integer>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>REPO_ROOT/data/puzzles/generator.log</string>
+    <key>StandardErrorPath</key>
+    <string>REPO_ROOT/data/puzzles/generator.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+  </dict>
+</plist>
