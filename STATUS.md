@@ -413,6 +413,50 @@ the benchmark's purpose and the app's teaching levels. Beyond that the value is
 ML training data, which is gated behind other work anyway. A quota of 100–200
 reaches useful coverage in a few hours rather than days.
 
+#### Storing seeds instead of puzzles — sound, but not worth it
+
+The idea: keep 1000 seeds for Swordfish rather than 1000 puzzles, and
+regenerate on demand.
+
+**The mechanics check out.** The RNG (mulberry32) is pure integer arithmetic
+plus `Math.imul`, so it produces identical output on any JS engine — verified,
+and there is no platform dependence to worry about. The same seed reliably
+reproduces the same puzzle.
+
+**But the seed is not the whole input.** A puzzle is a function of the seed
+_and_ the generator: same seed with a different symmetry gives a completely
+different puzzle (22 clues vs 29, verified). Any change to `generate`, to the
+shuffle, or to the solve path inside `countSolutions` shifts the output too. So
+a seed record must pin the generator version and every option, and a refactor
+that reorders RNG draws silently invalidates the whole archive. The stored
+artefact would be "reproducible" only against a frozen version of code that is
+still being actively developed.
+
+**And the saving is small.** Measured: 136 bytes per puzzle as JSONL, so 1000
+Swordfish puzzles is **133 KB** against ~23 KB as seeds. A 110 KB saving on a
+corpus that will not plausibly exceed a few megabytes, in a git repo, against
+losing the ability to read the data without running code.
+
+**Verdict: store the puzzles.** They are small, portable, inspectable, diffable,
+usable by anyone without this codebase, and immune to refactors. That last point
+matters most given the corpus is the project's credibility claim.
+
+**Worth taking from the idea:** log the seed _alongside_ each puzzle. It costs
+8 bytes, aids debugging ("this puzzle came from seed N, pass M"), and makes a
+harvest run auditable — without making regeneration load-bearing. The
+harvesters already accept explicit seeds for exactly this reason.
+
+#### Corpus work runs locally, not in CI
+
+Deliberately. The SE oracle needs a JVM and `SudokuExplainer.jar`, which is
+gitignored and downloaded per contributor — CI would have to fetch it on every
+run. More to the point, this is hours of compute against a clock someone pays
+for, producing data that gets committed once. A laptop that is idle anyway is
+both cheaper and faster.
+
+CI's job stays what it is: verify the committed corpus still passes at 95%+.
+Generating the corpus is a local chore; validating it is CI's.
+
 #### Can generation target a specific technique?
 
 Yes, and it is the single highest-value improvement to this pipeline — it turns
