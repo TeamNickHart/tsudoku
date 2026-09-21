@@ -3,6 +3,7 @@ import type { HintAccumulator } from '../../types/Hint.js';
 import type { HintProducer } from '../../types/HintProducer.js';
 import type { Technique } from '../../types/Technique.js';
 import { TECHNIQUE_DIFFICULTY } from '../../types/Technique.js';
+import { permutations } from '../../tools/permutations.js';
 
 function cellName(row: number, col: number): string {
   return `R${row + 1}C${col + 1}`;
@@ -209,50 +210,4 @@ function searchCommonTuple(candidates: Set<number>[], degree: number): Set<numbe
   }
   if (result.size === degree) return result;
   return null;
-}
-
-/**
- * Port of Permutations(countOnes, countBits).
- * Generates all C(countBits, countOnes) combinations as arrays of 0-based
- * bit indices, in increasing binary order.
- *
- * Uses the Gosper's hack algorithm from "Hacker's Delight",
- * same as SE's Permutations.java.
- */
-function permutations(countOnes: number, countBits: number): number[][] {
-  const results: number[][] = [];
-  if (countBits === 0) return results;
-
-  // Port of SE's Permutations.java — Gosper's hack from "Hacker's Delight"
-  let value = (1 << countOnes) - 1;
-  const mask = (1 << (countBits - countOnes)) - 1;
-  let isLast = false;
-
-  // SE: while (perm.hasNext()) { int[] values = perm.nextBitNums(); ... }
-  // hasNext() returns !isLast (before update), then sets isLast for next call
-  for (;;) {
-    const hasNext = !isLast;
-    isLast = (value & -value & mask) === 0;
-    if (!hasNext) break;
-
-    // SE: nextBitNums() — convert bitmask to array of set bit indices
-    const bitNums: number[] = [];
-    const current = value;
-    for (let src = 0; src < countBits; src++) {
-      if ((current & (1 << src)) !== 0) {
-        bitNums.push(src);
-      }
-    }
-    results.push(bitNums);
-
-    // SE: next() — advance to next permutation
-    if (!isLast) {
-      const smallest = value & -value;
-      const ripple = value + smallest;
-      const ones = ((value ^ ripple) >>> 2) / smallest;
-      value = ripple | ones;
-    }
-  }
-
-  return results;
 }
