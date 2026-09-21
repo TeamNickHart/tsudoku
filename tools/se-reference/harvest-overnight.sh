@@ -48,7 +48,11 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   pass=$((pass + 1))
   echo "--- pass $pass (quota $QUOTA) $(date +%H:%M) ---" >> "$LOG"
 
-  node tools/se-reference/harvest-targeted.mjs "$QUOTA" "${RATINGS[@]}" >> "$LOG" 2>&1
+  # --progress gives the log a heartbeat. Without it the only mid-run output
+  # is a carriage-return counter, which vanishes when redirected — so the log
+  # would sit silent for long stretches and look stalled.
+  node tools/se-reference/harvest-targeted.mjs --progress=1000 "$QUOTA" "${RATINGS[@]}" \
+    >> "$LOG" 2>&1
 
   # A pass that completes means every rating hit quota; raise it and continue.
   QUOTA=$((QUOTA + STEP))
