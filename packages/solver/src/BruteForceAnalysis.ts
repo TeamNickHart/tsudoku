@@ -27,6 +27,13 @@ import { hasNoDoubles } from './NoDoubles.js';
 export type SolutionCount = 0 | 1 | 2;
 
 /**
+ * A source of randomness, so callers can seed it and get reproducible output.
+ *
+ * Returns a float in [0, 1), matching `Math.random`.
+ */
+export type Rng = () => number;
+
+/**
  * SE's `isSolved` — every cell has a value.
  *
  * SE ref: BruteForceAnalysis.isSolved
@@ -124,7 +131,7 @@ function placeValue(grid: Grid, cellIndex: number, digit: number): Grid {
  *
  * SE ref: BruteForceAnalysis.analyse(Grid, boolean, Random, ...)
  */
-function analyse(grid: Grid, isReverse: boolean): Grid | null {
+function analyse(grid: Grid, isReverse: boolean, rnd?: Rng): Grid | null {
   // Quick check that every digit still has room in every region.
   if (!isFillable(grid)) {
     return null;
@@ -162,14 +169,20 @@ function analyse(grid: Grid, isReverse: boolean): Grid | null {
   const stopValue = isReverse ? -1 : SIZE;
   const delta = isReverse ? -1 : 1;
 
+  // SE: `firstValue = rnd.nextInt(9)` — rotating the digit order is what makes
+  // solving an *empty* grid produce a random completed board, which is how the
+  // generator gets a solution to carve a puzzle from. Without it the search is
+  // deterministic and always returns the same grid.
+  const firstValue = rnd === undefined ? 0 : Math.floor(rnd() * SIZE);
+
   // Safe: leastCell was assigned above
   const candidates = settled.cells[leastCell]!.candidates;
 
   for (let value0 = startValue; value0 !== stopValue; value0 += delta) {
-    const value = value0 + 1;
+    const value = rnd === undefined ? value0 + 1 : ((value0 + firstValue) % SIZE) + 1;
     if (hasCandidate(candidates, value)) {
       const branch = placeValue(settled, leastCell, value);
-      const result = analyse(branch, isReverse);
+      const result = analyse(branch, isReverse, rnd);
       if (result !== null) {
         return result;
       }
@@ -191,6 +204,21 @@ function toPuzzleString(grid: Grid): string {
     chars.push(value === null ? '.' : String(value));
   }
   return chars.join('');
+}
+
+/**
+ * Solve a grid with a randomised digit order.
+ *
+ * Port of SE's `BruteForceAnalysis.solveRandom`. Solving an *empty* grid this
+ * way yields a random completed board — the starting point for generation.
+ *
+ * SE ref: BruteForceAnalysis.solveRandom
+ */
+export function solveRandom(grid: Grid, rnd: Rng = Math.random): Grid | null {
+  if (!hasNoDoubles(grid)) {
+    return null;
+  }
+  return analyse(grid, false, rnd);
 }
 
 /**

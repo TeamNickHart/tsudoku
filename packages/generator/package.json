@@ -1,7 +1,7 @@
 {
   "name": "@tsudoku/generator",
   "version": "0.0.0",
-  "description": "Puzzle generation and SE-compatible difficulty rating",
+  "description": "Puzzle generation with SE-compatible symmetries",
   "license": "MIT",
   "type": "module",
   "exports": {
