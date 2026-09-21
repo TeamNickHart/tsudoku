@@ -20,7 +20,12 @@
  * about.
  *
  * Usage:
- *   node tools/se-reference/harvest-targeted.mjs <quota> <rating...>
+ *   node tools/se-reference/harvest-targeted.mjs [--progress[=N]] <quota> <rating...>
+ *
+ *   --progress[=N]  report every N generated puzzles (default 500). Without
+ *                   it the only mid-run output is a carriage-return counter,
+ *                   which disappears entirely when stdout is a file — so a
+ *                   redirected run looks stalled between confirmations.
  *
  * Example — fill the thin Phase 2 ratings to 20 each:
  *   node tools/se-reference/harvest-targeted.mjs 20 3.0 3.2 3.4 3.6 3.8 4.0 4.4
@@ -35,7 +40,23 @@ import { CorpusLock } from './lock.mjs';
 import { createGrid, applyHint, Solver } from '../../packages/core/dist/index.js';
 import { generate, NO_SYMMETRY, ROTATIONAL_180 } from '../../packages/generator/dist/index.js';
 
-const [, , quotaArg, ...ratingArgs] = process.argv;
+const rawArgs = process.argv.slice(2);
+
+// --progress / --progress=N
+let progressEvery = 0;
+const args = rawArgs.filter((arg) => {
+  if (arg === '--progress') {
+    progressEvery = 500;
+    return false;
+  }
+  if (arg.startsWith('--progress=')) {
+    progressEvery = Number(arg.split('=')[1]) || 500;
+    return false;
+  }
+  return true;
+});
+
+const [quotaArg, ...ratingArgs] = args;
 const quota = Number(quotaArg);
 const wanted = new Set(ratingArgs.map(Number));
 
@@ -143,6 +164,8 @@ for (const r of [...wanted].sort()) {
 let generated = 0;
 let confirmed = 0;
 let localHits = 0;
+let lastProgressAt = 0;
+const startedAt = Date.now();
 const added = [];
 
 while (remaining().length > 0 && generated < 200000) {
@@ -159,8 +182,24 @@ while (remaining().length > 0 && generated < 200000) {
     localHits += 1;
   }
 
+  // A line-oriented heartbeat, so a redirected run shows it is alive and how
+  // far it has to go. The \r counter below is for an attached terminal.
+  if (progressEvery > 0 && generated - lastProgressAt >= progressEvery) {
+    lastProgressAt = generated;
+    const outstanding = remaining()
+      .map((r) => `${r}:${have.get(r) ?? 0}/${quota}`)
+      .join(' ');
+    const rate = Math.round(generated / ((Date.now() - startedAt) / 1000));
+    console.error(
+      `  [${new Date().toTimeString().slice(0, 8)}] ${generated} generated, ` +
+        `${confirmed} confirmed, ${rate}/s — still wanted: ${outstanding}`,
+    );
+  }
+
   if (candidates.length === 0) {
-    process.stderr.write(`  ${generated} generated, ${confirmed} confirmed\r`);
+    if (progressEvery === 0) {
+      process.stderr.write(`  ${generated} generated, ${confirmed} confirmed\r`);
+    }
     continue;
   }
 
