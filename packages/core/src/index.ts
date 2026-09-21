@@ -59,3 +59,7 @@ export { DirectPointing } from './techniques/phase1/DirectPointing.js';
 export { DirectClaiming } from './techniques/phase1/DirectClaiming.js';
 export { DirectHiddenSet } from './techniques/phase1/DirectHiddenSet.js';
 export { Locking } from './techniques/phase2/Locking.js';
+export { NakedSet } from './techniques/phase2/NakedSet.js';
+export { HiddenSet } from './techniques/phase2/HiddenSet.js';
+export { Fisherman } from './techniques/phase2/Fisherman.js';
+export { XYWing } from './techniques/phase2/XYWing.js';
