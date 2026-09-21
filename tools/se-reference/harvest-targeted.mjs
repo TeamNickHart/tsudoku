@@ -31,6 +31,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Imported by path rather than by package name: workspace links only resolve
 // from inside a package directory, and this runs from the repo root.
+import { CorpusLock } from './lock.mjs';
 import { createGrid, applyHint, Solver } from '../../packages/core/dist/index.js';
 import { generate, NO_SYMMETRY, ROTATIONAL_180 } from '../../packages/generator/dist/index.js';
 
@@ -42,6 +43,18 @@ if (!quota || wanted.size === 0) {
   console.error('usage: harvest-targeted.mjs <quota> <rating...>');
   process.exit(1);
 }
+
+// Only one harvester may write the corpus. Each run holds the whole file in
+// memory and rewrites it on every flush, so two concurrent runs do not
+// interleave — the second to flush discards the first's work entirely.
+const lock = new CorpusLock('corpus');
+try {
+  lock.acquire();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+lock.releaseOnExit();
 
 const CORPUS = 'benchmarks/corpus/phase2.jsonl';
 const existing = existsSync(CORPUS)
@@ -103,9 +116,15 @@ function flush() {
 }
 
 // Persist whatever has been confirmed if the run is interrupted.
+//
+// This releases the lock itself rather than relying on lock.releaseOnExit():
+// handlers run in registration order and this one calls process.exit, so the
+// lock's own handler would never be reached. Registering first and exiting is
+// exactly how a lock gets left behind.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     flush();
+    lock.release();
     console.error(`\nInterrupted. ${added.length} puzzles kept.`);
     process.exit(0);
   });
