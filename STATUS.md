@@ -75,7 +75,7 @@ every technique in the SE 1.0–4.4 band.
 | `@tsudoku/game`         | **Working** | State, moves, notes, history, decorations (~720 lines) |
 | `@tsudoku/solver`       | **Working** | Brute force, uniqueness, solution strings (~310 lines) |
 | `apps/web`              | **Working** | Playable, deployed (~820 lines)                        |
-| `@tsudoku/generator`    | **Working** | Generator + Symmetry ported (~320 lines)               |
+| `@tsudoku/generator`    | **Working** | Generator + Symmetry + ConstructEasy (~470 lines)      |
 | `@tsudoku/cli`          | Stub        | same; `commander` already a declared dependency        |
 | `@tsudoku/react-native` | Stub        | same; intentionally deferred until web proves out      |
 | `docs/` (VitePress)     | Working     | Deploys to tsudoku.dev via Vercel                      |
@@ -88,7 +88,7 @@ order. Corpus counts and parity, measured:
 
 | Technique            | SE rating | Corpus | Validated |
 | -------------------- | --------- | ------ | --------- |
-| `NakedSingle` (last) | 1.0       | **0**  | **No**    |
+| `NakedSingle` (last) | 1.0       | 25     | 100%      |
 | `HiddenSingle`       | 1.2 / 1.5 | 204    | 100%      |
 | `DirectPointing`     | 1.7       | 100    | 100%      |
 | `DirectClaiming`     | 1.9       | **0**  | **No**    |
@@ -106,12 +106,36 @@ order. Corpus counts and parity, measured:
 | `XYWing(false)`      | 4.2       | **37** | 100%      |
 | `XYWing(true)`       | 4.4       | 110    | 100%      |
 
-**Two Phase 1 ratings still have zero puzzles** — 1.0 (full house) and 1.9
-(DirectClaiming). The benchmark reports PASS for a technique with no corpus, so
-`DirectClaiming` has shipped in `DEFAULT_PRODUCERS` since Phase 1 with no
-SE-rating validation at all. Neither rating appeared once in 800 generated
-puzzles; they are rare, not overlooked. A targeted harvest is the fix, and it
-should be the _first_ thing an overnight run covers.
+**1.0 is fixed; 1.9 is a different problem.** Both were empty, and both were
+described here as "rare". Measurement says otherwise — they are _absent_, for
+two unrelated structural reasons.
+
+**1.0 (full house) — solved.** `generate()` carves _minimal_ puzzles, which are
+the hardest form of a given solution grid, and 1.0 is the opposite extreme:
+every step a region with one empty cell. Over 2500 sampled puzzles and a
+24,000-puzzle harvest, `generate()` produced it **zero** times; adding clues back
+to a minimal puzzle drives the rating to 1.2 and plateaus there. So it is
+constructed directly instead — place each hole alone in its row, column and box
+— by `constructEasy()` in `@tsudoku/generator`. SE confirms 20/20 at
+`ED=1.0/1.0/1.0`, and the harvester uses it automatically when 1.0 is requested.
+
+**1.9 (DirectClaiming) — still open, and not a generation problem.**
+DirectClaiming fires readily: it had a hint available at **14,809** solver steps
+across a sample. But at **100.0%** of those steps a _cheaper_ technique was also
+available — HiddenSingle (1.5) or DirectPointing (1.7) — so the solver takes
+that one first and 1.9 is never the hardest step. 0 of 2272 rated positions came
+out at 1.9.
+
+That makes a 1.9 puzzle one where DirectClaiming is _forced_: some cell
+resolvable only by claiming, with no hidden single or pointing anywhere on the
+board at that moment. Whether such a position exists at all is an open question
+— it may be that 1.9 is only reachable through puzzles built around it
+deliberately, or that the rating is essentially vestigial. **Worth settling
+before assuming the corpus can ever cover it**, and worth checking against SE's
+own test puzzles rather than generated ones.
+
+Until then `DirectClaiming` remains implemented but unvalidated against SE
+ratings, and the benchmark still reports PASS for it on an empty corpus.
 
 ---
 

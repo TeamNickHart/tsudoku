@@ -5,6 +5,9 @@ export const VERSION = '0.0.0';
 export { generate, generateMany } from './Generator.js';
 export type { GenerateOptions, GeneratedPuzzle } from './Generator.js';
 
+export { constructEasy, constructEasyMany } from './ConstructEasy.js';
+export type { ConstructEasyOptions, ConstructedPuzzle } from './ConstructEasy.js';
+
 export {
   SYMMETRIES,
   NO_SYMMETRY,

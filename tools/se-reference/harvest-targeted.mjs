@@ -48,7 +48,12 @@ import { join } from 'node:path';
 // from inside a package directory, and this runs from the repo root.
 import { CorpusLock } from './lock.mjs';
 import { createGrid, applyHint, Solver } from '../../packages/core/dist/index.js';
-import { generate, NO_SYMMETRY, ROTATIONAL_180 } from '../../packages/generator/dist/index.js';
+import {
+  constructEasy,
+  generate,
+  NO_SYMMETRY,
+  ROTATIONAL_180,
+} from '../../packages/generator/dist/index.js';
 
 const rawArgs = process.argv.slice(2);
 
@@ -274,6 +279,10 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
   process.on(signal, () => shutdown(`Interrupted by ${signal}.`));
 }
 
+// Whether any requested rating is one only the constructor can reach.
+const CONSTRUCTED_RATINGS = new Set([1.0]);
+const wantsConstructed = [...wanted].some((r) => CONSTRUCTED_RATINGS.has(r));
+
 const work = mkdtempSync(join(tmpdir(), 'tsudoku-'));
 const symmetries = [ROTATIONAL_180, NO_SYMMETRY];
 
@@ -304,7 +313,20 @@ while (remaining().length > 0 && generated < 200000) {
 
   const candidates = [];
   for (let i = 0; i < 200; i++) {
-    const p = generate({ symmetry: symmetries[i % 2], rng });
+    // 1.0 needs a different algorithm, not more attempts.
+    //
+    // `generate()` carves MINIMAL puzzles, which are the hardest form of a
+    // given solution grid, and SE 1.0 lives at the opposite end: every step a
+    // full house. Measured, `generate()` produces it at a rate of zero — 2500
+    // sampled puzzles and a 24,000-puzzle harvest both found none. So when 1.0
+    // is wanted, construct it directly instead of sampling and hoping.
+    //
+    // Interleaved rather than run as a separate phase so that a mixed request
+    // (say 1.0 alongside 2.6) still makes progress on both.
+    const p =
+      wantsConstructed && i % 2 === 0
+        ? constructEasy({ holeCount: 1 + Math.floor(rng() * 9), rng })
+        : generate({ symmetry: symmetries[i % 2], rng });
     generated += 1;
     if (seen.has(p.puzzle)) continue;
 
