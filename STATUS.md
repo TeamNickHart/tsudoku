@@ -86,25 +86,25 @@ every technique in the SE 1.0–4.4 band.
 All sixteen producers are registered in `DEFAULT_PRODUCERS` in SE difficulty
 order. Corpus counts and parity, measured:
 
-| Technique            | SE rating | Corpus | Validated |
-| -------------------- | --------- | ------ | --------- |
-| `NakedSingle` (last) | 1.0       | 25     | 100%      |
-| `HiddenSingle`       | 1.2 / 1.5 | 204    | 100%      |
-| `DirectPointing`     | 1.7       | 100    | 100%      |
-| `DirectClaiming`     | 1.9       | **0**  | **No**    |
-| `DirectHiddenSet(2)` | 2.0       | 103    | 100%      |
-| `NakedSingle`        | 2.3       | 100    | 100%      |
-| `DirectHiddenSet(3)` | 2.5       | 100    | 100%      |
-| `Locking(true)`      | 2.6       | **33** | 100%      |
-| `Locking(false)`     | 2.8       | **11** | 100%      |
-| `NakedSet(2)`        | 3.0       | 121    | 100%      |
-| `Fisherman(2)`       | 3.2       | 106    | 100%      |
-| `HiddenSet(2)`       | 3.4       | 112    | 100%      |
-| `NakedSet(3)`        | 3.6       | 104    | 100%      |
-| `Fisherman(3)`       | 3.8       | 100    | 100%      |
-| `HiddenSet(3)`       | 4.0       | 102    | 100%      |
-| `XYWing(false)`      | 4.2       | **37** | 100%      |
-| `XYWing(true)`       | 4.4       | 110    | 100%      |
+| Technique            | SE rating | Corpus | Validated   |
+| -------------------- | --------- | ------ | ----------- |
+| `NakedSingle` (last) | 1.0       | 25     | 100%        |
+| `HiddenSingle`       | 1.2 / 1.5 | 204    | 100%        |
+| `DirectPointing`     | 1.7       | 100    | 100%        |
+| `DirectClaiming`     | 1.9       | n/a    | Unreachable |
+| `DirectHiddenSet(2)` | 2.0       | 103    | 100%        |
+| `NakedSingle`        | 2.3       | 100    | 100%        |
+| `DirectHiddenSet(3)` | 2.5       | 100    | 100%        |
+| `Locking(true)`      | 2.6       | **33** | 100%        |
+| `Locking(false)`     | 2.8       | **11** | 100%        |
+| `NakedSet(2)`        | 3.0       | 121    | 100%        |
+| `Fisherman(2)`       | 3.2       | 106    | 100%        |
+| `HiddenSet(2)`       | 3.4       | 112    | 100%        |
+| `NakedSet(3)`        | 3.6       | 104    | 100%        |
+| `Fisherman(3)`       | 3.8       | 100    | 100%        |
+| `HiddenSet(3)`       | 4.0       | 102    | 100%        |
+| `XYWing(false)`      | 4.2       | **37** | 100%        |
+| `XYWing(true)`       | 4.4       | 110    | 100%        |
 
 **1.0 is fixed; 1.9 is a different problem.** Both were empty, and both were
 described here as "rare". Measurement says otherwise — they are _absent_, for
@@ -119,23 +119,47 @@ constructed directly instead — place each hole alone in its row, column and bo
 — by `constructEasy()` in `@tsudoku/generator`. SE confirms 20/20 at
 `ED=1.0/1.0/1.0`, and the harvester uses it automatically when 1.0 is requested.
 
-**1.9 (DirectClaiming) — still open, and not a generation problem.**
-DirectClaiming fires readily: it had a hint available at **14,809** solver steps
-across a sample. But at **100.0%** of those steps a _cheaper_ technique was also
-available — HiddenSingle (1.5) or DirectPointing (1.7) — so the solver takes
-that one first and 1.9 is never the hardest step. 0 of 2272 rated positions came
-out at 1.9.
+**1.9 (DirectClaiming) — settled: it is unreachable, and that is SE's own
+behaviour, not a TSudoku bug.**
 
-That makes a 1.9 puzzle one where DirectClaiming is _forced_: some cell
-resolvable only by claiming, with no hidden single or pointing anywhere on the
-board at that moment. Whether such a position exists at all is an open question
-— it may be that 1.9 is only reachable through puzzles built around it
-deliberately, or that the rating is essentially vestigial. **Worth settling
-before assuming the corpus can ever cover it**, and worth checking against SE's
-own test puzzles rather than generated ones.
+SE ships no test puzzles at all — no `.txt`, no `.dat`, no embedded 81-char
+strings anywhere in the Java source — so the question was answered from SE's
+source and from measurement instead.
 
-Until then `DirectClaiming` remains implemented but unvalidated against SE
-ratings, and the benchmark still reports PASS for it on an empty corpus.
+**1.9 is real and well-defined.** `DirectLockingHint.getDifficulty()` returns
+1.7 when `regions[0]` is a `Block` (Direct Pointing) and 1.9 otherwise (Direct
+Claiming). So SE genuinely has the rating.
+
+**But SE's own scan order makes it unreachable as a puzzle rating.** Three
+facts compose:
+
+1. `Solver.java` registers exactly one producer for both — `new Locking(true)`
+   as `SolvingTechnique.DirectPointing`. There is no separate DirectClaiming
+   entry.
+2. Inside `Locking.getHints`, the scan order is `Block×Column`, `Block×Row`,
+   then `Column×Block`, `Row×Block`. The block-first pairs produce 1.7; the
+   line-first pairs produce 1.9.
+3. `analyseDifficulty` uses a `SingleHintAccumulator`, which throws
+   `InterruptedException` on the **first** hint. And `HiddenSingle` is
+   registered _before_ `Locking(true)`.
+
+A Direct Claiming hint is a claiming deduction that induces a hidden single. So
+whenever one exists, the induced hidden single exists too — and `HiddenSingle`
+runs first and claims it at 1.2/1.5. For 1.9 to be a puzzle's hardest step, a
+position would need a Direct Claiming hint while having no hidden single and no
+Direct Pointing anywhere on the board, which the technique's own definition
+rules out.
+
+Measured, on top of the structural argument: across **64,355** solver steps,
+DirectClaiming had a hint available **21,271** times and was the sole available
+technique **0** times.
+
+**Consequence.** `DirectClaiming` is correctly implemented and fires correctly;
+it simply never determines a puzzle's rating, so no SE-rated corpus can ever
+contain a 1.9 puzzle. The benchmark's "PASS on an empty corpus" for it is not a
+gap to close — it is the correct and permanent state. The runner should say so
+explicitly rather than leaving a reader to assume the corpus is merely
+unfinished.
 
 ---
 
