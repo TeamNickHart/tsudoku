@@ -5,7 +5,9 @@ import { NumberPad } from '@/components/NumberPad';
 import { Button } from '@/components/ui/button';
 import { useGame } from '@/lib/useGame';
 import type { InputMode } from '@/lib/useGame';
-import { PUZZLES } from '@/data/corpus';
+import { SettingsPanel } from '@/components/SettingsPanel';
+import { bandForPuzzle, randomPuzzleInBand } from '@/lib/difficulty';
+import { useSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
 const MODE_LABELS: Record<InputMode, string> = {
@@ -15,11 +17,24 @@ const MODE_LABELS: Record<InputMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const [puzzleIndex, setPuzzleIndex] = useState(0);
-  const puzzle = PUZZLES[puzzleIndex]!;
+  const { settings, setBand, toggleAutoSolve, setAutoNotes } = useSettings();
+  const [showSettings, setShowSettings] = useState(false);
+
+  // The first puzzle is drawn once, on mount. A lazy initialiser rather than a
+  // plain call so a re-render never silently swaps the board out from under a
+  // game in progress.
+  const [puzzle, setPuzzle] = useState(() => randomPuzzleInBand(settings.bandId));
 
   const game = useGame(puzzle.puzzle);
   const { state, cells, counts, errors, solved, remaining, mode, setMode, hint } = game;
+
+  const band = bandForPuzzle(puzzle);
+
+  const newPuzzle = useCallback(() => {
+    const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle);
+    setPuzzle(next);
+    game.newGame(next.puzzle);
+  }, [settings.bandId, puzzle.puzzle, game]);
 
   const activateCell = useCallback(
     (index: number, additive: boolean) => {
@@ -103,8 +118,11 @@ export function App(): JSX.Element {
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-6">
       <header className="flex items-baseline justify-between">
         <h1 className="text-xl font-semibold tracking-tight">TSudoku</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          SE {puzzle.rating.toFixed(1)} · {puzzle.technique}
+        <p className="text-right text-sm text-muted-foreground">
+          <span className="tabular-nums">
+            SE {puzzle.rating.toFixed(1)} · {puzzle.technique}
+          </span>
+          {band !== null && <span className="block text-xs">{band.label}</span>}
         </p>
       </header>
 
@@ -183,16 +201,33 @@ export function App(): JSX.Element {
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto"
-          onClick={() => {
-            const next = (puzzleIndex + 1) % PUZZLES.length;
-            setPuzzleIndex(next);
-            game.newGame(PUZZLES[next]!.puzzle);
-          }}
+          onClick={() => setShowSettings((open) => !open)}
+          aria-expanded={showSettings}
         >
-          Next puzzle
+          Settings
+        </Button>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={newPuzzle}>
+          New puzzle
         </Button>
       </div>
+
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onSetBand={(bandId) => {
+            setBand(bandId);
+            // Switching band should show a puzzle from it straight away —
+            // otherwise the setting looks like it did nothing until the next
+            // "New puzzle" press.
+            const next = randomPuzzleInBand(bandId, puzzle.puzzle);
+            setPuzzle(next);
+            game.newGame(next.puzzle);
+          }}
+          onToggleAutoSolve={toggleAutoSolve}
+          onSetAutoNotes={setAutoNotes}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {hint && (
         <div className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm">

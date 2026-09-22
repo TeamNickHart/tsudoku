@@ -172,7 +172,13 @@ function NoteGrid({ notes, included, staleNotes, noteRoles }: NoteGridProps): JS
           <span
             key={digit}
             className={cn(
-              'flex items-center justify-center text-[clamp(0.45rem,1.5vmin,0.7rem)]',
+              // Minimum 0.625rem (10px). The old floor was 0.45rem — 7.2px on a
+              // 375px-wide phone, measured, which is below what anyone can
+              // comfortably read and well under the ~11px where digits stay
+              // legible at a glance. The note cell is a third of a board cell,
+              // so 2.2vmin tracks it closely and the max only matters on very
+              // wide screens.
+              'flex items-center justify-center text-[clamp(0.625rem,2.2vmin,0.8rem)]',
               'leading-none tabular-nums',
               'text-board-note',
               isAuto && 'opacity-60',

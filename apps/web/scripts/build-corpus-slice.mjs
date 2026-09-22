@@ -13,9 +13,15 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..', '..');
-const PER_TECHNIQUE = 6;
+const PER_TECHNIQUE = 12;
 
-const lines = readFileSync(join(root, 'benchmarks/corpus/phase1.jsonl'), 'utf8').trim().split('\n');
+// Both phases: the app offers difficulty settings, and phase1 alone tops out
+// at SE 2.5 — every technique worth teaching lives in phase2.
+const lines = ['phase1', 'phase2'].flatMap((phase) =>
+  readFileSync(join(root, `benchmarks/corpus/${phase}.jsonl`), 'utf8')
+    .trim()
+    .split('\n'),
+);
 
 const byTechnique = new Map();
 for (const line of lines) {
