@@ -78,13 +78,18 @@ try {
 lock.releaseOnExit();
 
 const CORPUS = 'benchmarks/corpus/phase2.jsonl';
-const existing = existsSync(CORPUS)
-  ? readFileSync(CORPUS, 'utf8')
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => JSON.parse(l))
-  : [];
+
+/** The corpus as it is on disk right now. */
+function readCorpus() {
+  if (!existsSync(CORPUS)) return [];
+  return readFileSync(CORPUS, 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
+}
+
+const existing = readCorpus();
 
 const have = new Map();
 const seen = new Set(existing.map((e) => e.puzzle));
@@ -130,7 +135,24 @@ function localRating(puzzle) {
 
 /** Rewrite the corpus with everything confirmed so far, sorted by rating. */
 function flush() {
-  const merged = [...existing, ...added].sort(
+  // Re-read rather than merging into the startup snapshot.
+  //
+  // `existing` is a photograph of the corpus taken when this run began. If
+  // anything else has written since — a git pull, a merge, an earlier run
+  // whose work was committed — merging into that stale copy silently reverts
+  // it. That is how XWing went from 24 puzzles back to 22 between runs: the
+  // second harvester started first, finished later, and rewrote the file with
+  // a view of the world from before the first one's commit.
+  //
+  // The lock stops two harvesters overlapping. This stops a single harvester
+  // undoing work that landed by any other route.
+  const onDisk = readCorpus();
+  const byPuzzle = new Map();
+  for (const entry of [...onDisk, ...added]) {
+    byPuzzle.set(entry.puzzle, entry);
+  }
+
+  const merged = [...byPuzzle.values()].sort(
     (a, b) => a.se_rating - b.se_rating || a.puzzle.localeCompare(b.puzzle),
   );
   writeFileSync(CORPUS, merged.map((e) => JSON.stringify(e)).join('\n') + '\n');
@@ -248,5 +270,5 @@ flush();
 
 console.error(
   `\nDone. ${generated} generated, ${localHits} passed the local filter, ` +
-    `${confirmed} confirmed by SE. ${CORPUS}: ${existing.length} -> ${existing.length + added.length}.`,
+    `${confirmed} confirmed by SE. ${CORPUS}: ${existing.length} -> ${readCorpus().length}.`,
 );

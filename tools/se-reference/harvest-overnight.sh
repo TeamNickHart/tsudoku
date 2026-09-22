@@ -17,8 +17,18 @@
 # Example — run for 8 hours, starting at 50 and climbing by 25:
 #   bash tools/se-reference/harvest-overnight.sh 8 50 25
 #
-# Safe to interrupt: the corpus is rewritten after each completed pass, and a
-# partial pass simply leaves the previous pass's work in place.
+# To stop it, send SIGTERM to the wrapper — one signal stops both it and the
+# worker:
+#
+#   pkill -TERM -f harvest-overnight
+#
+# Use TERM, not INT. A backgrounded shell ignores SIGINT, and a signal that is
+# ignored cannot be trapped, so `kill -INT` on the wrapper does nothing at all.
+# That is why stopping used to require killing the wrapper and worker
+# separately.
+#
+# Safe to interrupt at any point: the harvester flushes after every
+# confirmation, so at most one puzzle is ever in flight.
 
 set -uo pipefail
 
@@ -38,6 +48,31 @@ mkdir -p "$(dirname "$LOG")"
 
 deadline=$(( $(date +%s) + HOURS * 3600 ))
 pass=0
+worker_pid=""
+stopping=0
+
+# Without this, stopping the run is a fight: killing the worker just makes the
+# loop start another, so the only thing that worked was killing the wrapper
+# first and the worker second — which is not an interface anyone should have to
+# remember. Now a single Ctrl-C (or kill) stops both.
+stop() {
+  stopping=1
+  if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
+    echo "Stopping worker $worker_pid..." | tee -a "$LOG"
+    kill -INT "$worker_pid" 2>/dev/null
+
+    # The worker blocks inside a synchronous SE call and cannot service a
+    # signal until it returns, so give it a grace period before forcing.
+    for _ in $(seq 1 30); do
+      kill -0 "$worker_pid" 2>/dev/null || break
+      sleep 1
+    done
+    kill -9 "$worker_pid" 2>/dev/null
+  fi
+  echo "=== stopped $(date) after $pass pass(es) ===" >> "$LOG"
+  exit 0
+}
+trap stop INT TERM HUP
 
 {
   echo "=== overnight harvest started $(date) ==="
@@ -51,8 +86,23 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   # --progress gives the log a heartbeat. Without it the only mid-run output
   # is a carriage-return counter, which vanishes when redirected — so the log
   # would sit silent for long stretches and look stalled.
+  # Backgrounded and waited on, rather than run in the foreground: a foreground
+  # child makes the shell defer the trap until it exits, which for a worker
+  # stuck in an SE call can be half a minute.
   node tools/se-reference/harvest-targeted.mjs --progress=1000 "$QUOTA" "${RATINGS[@]}" \
-    >> "$LOG" 2>&1
+    >> "$LOG" 2>&1 &
+  worker_pid=$!
+
+  # Poll rather than `wait`. Bash defers a trap until the current builtin
+  # returns, and `wait` on a long-running child does not return for minutes —
+  # so a trapped Ctrl-C would sit unhandled the whole time. Polling gives the
+  # shell a chance to run the handler between sleeps.
+  while kill -0 "$worker_pid" 2>/dev/null; do
+    sleep 2
+  done
+  worker_pid=""
+
+  [ "$stopping" -eq 1 ] && break
 
   # A pass that completes means every rating hit quota; raise it and continue.
   QUOTA=$((QUOTA + STEP))
