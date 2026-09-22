@@ -17,15 +17,21 @@
 # Example — run for 8 hours, starting at 50 and climbing by 25:
 #   bash tools/se-reference/harvest-overnight.sh 8 50 25
 #
-# To stop it, send SIGTERM to the wrapper — one signal stops both it and the
-# worker:
+# To stop it, either works:
 #
-#   pkill -TERM -f harvest-overnight
+#   touch .harvest-stop                    # simplest, and what the wrapper uses
+#   pkill -TERM -f harvest-overnight       # equivalent; the wrapper traps it
 #
-# Use TERM, not INT. A backgrounded shell ignores SIGINT, and a signal that is
-# ignored cannot be trapped, so `kill -INT` on the wrapper does nothing at all.
-# That is why stopping used to require killing the wrapper and worker
-# separately.
+# The sentinel file is the mechanism that actually stops the WORKER. Its
+# harvest loop is entirely synchronous, so Node never returns to the event loop
+# and signals are never delivered to its JS handlers — `kill -TERM` on the
+# worker does nothing, and only SIGKILL stops it, which strands its lock. The
+# worker checks for this file between batches instead, and exits cleanly within
+# a few seconds.
+#
+# Signals still work on the WRAPPER, because bash services them normally. Use
+# TERM there, not INT: a backgrounded shell ignores SIGINT, and an ignored
+# signal cannot be trapped.
 #
 # Safe to interrupt at any point: the harvester flushes after every
 # confirmation, so at most one puzzle is ever in flight.
@@ -54,8 +60,11 @@ RATINGS=(2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0 4.2 4.4)
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root" || exit 1
 
+STOP_FILE=".harvest-stop"
 LOG="data/puzzles/harvest-overnight.log"
 mkdir -p "$(dirname "$LOG")"
+
+rm -f "$STOP_FILE"
 
 deadline=$(( $(date +%s) + HOURS * 3600 ))
 pass=0
@@ -70,16 +79,33 @@ stop() {
   stopping=1
   if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
     echo "Stopping worker $worker_pid..." | tee -a "$LOG"
-    kill -INT "$worker_pid" 2>/dev/null
 
-    # The worker blocks inside a synchronous SE call and cannot service a
-    # signal until it returns, so give it a grace period before forcing.
-    for _ in $(seq 1 30); do
+    # Ask via the sentinel file, NOT a signal.
+    #
+    # The worker's harvest loop is entirely synchronous, so Node never returns
+    # to the event loop and a signal is never delivered to its JS handler at
+    # all — `kill -INT` and `kill -TERM` both do nothing, which is why this
+    # used to fall through to `kill -9`. That killed the worker mid-write and
+    # stranded its lock directory, needing a manual `rm -rf .corpus.lock`.
+    #
+    # The worker checks for this file between batches and exits cleanly,
+    # flushing and releasing the lock on its way out.
+    touch "$STOP_FILE"
+
+    for _ in $(seq 1 60); do
       kill -0 "$worker_pid" 2>/dev/null || break
       sleep 1
     done
-    kill -9 "$worker_pid" 2>/dev/null
+
+    # Last resort. If this fires the worker was wedged somewhere unexpected;
+    # its incremental flush means confirmed puzzles are still on disk, but the
+    # lock may need clearing by hand.
+    if kill -0 "$worker_pid" 2>/dev/null; then
+      echo "Worker did not stop; forcing. Check for a stale .corpus.lock." | tee -a "$LOG"
+      kill -9 "$worker_pid" 2>/dev/null
+    fi
   fi
+  rm -f "$STOP_FILE"
   echo "=== stopped $(date) after $pass pass(es) ===" >> "$LOG"
   exit 0
 }
@@ -114,6 +140,15 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   worker_pid=""
 
   [ "$stopping" -eq 1 ] && break
+
+  # The worker exits on the sentinel without removing it, precisely so this
+  # check can see it. Without this the wrapper would start a fresh pass and the
+  # run could not be stopped by the sentinel at all.
+  if [ -e "$STOP_FILE" ]; then
+    echo "=== stopping: $STOP_FILE present ===" >> "$LOG"
+    rm -f "$STOP_FILE"
+    break
+  fi
 
   # A pass that completes means every rating hit quota; raise it and continue.
   QUOTA=$((QUOTA + STEP))

@@ -149,3 +149,4 @@ data/puzzles/unverified/processed/
 
 # Harvest lock directories
 .*.lock
+.harvest-stop

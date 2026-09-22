@@ -64,5 +64,5 @@ if [ -f "$LOG" ]; then
 fi
 
 echo
-echo "  stop with:  pkill -TERM -f harvest-overnight"
+echo "  stop with:  touch .harvest-stop   (or: pkill -TERM -f harvest-overnight)"
 echo "              (TERM, not INT — a backgrounded shell ignores SIGINT)"

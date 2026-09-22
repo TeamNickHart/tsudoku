@@ -41,7 +41,7 @@
  * puzzles. Expect them to take far longer than their low ratings suggest.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Imported by path rather than by package name: workspace links only resolve
@@ -124,21 +124,23 @@ const RATINGS = {
   4.4: { technique: 'XYZWing', phase: 2 },
 };
 
+/**
+ * Ratings for display, always with one decimal.
+ *
+ * JS normalises numeric literals and object keys, so 1.0 prints as "1" and 4.0
+ * as "4" — which in a log of SE ratings reads as a different scale entirely.
+ * Only presentation is affected; lookups resolve through the same
+ * normalisation on both sides.
+ */
+const fmtRating = (r) => Number(r).toFixed(1);
+
 // Reject unknown ratings up front rather than crashing on the first hit, or —
 // worse — banking entries with a bogus technique name that the benchmark would
 // silently skip.
 const unknown = [...wanted].filter((r) => !(r in RATINGS));
 if (unknown.length > 0) {
   console.error(`unknown rating(s): ${unknown.join(', ')}`);
-  // toFixed(1) because JS object keys normalise 1.0 to "1" — printing the raw
-  // keys would list "1 2 3 4" for the whole-number ratings, which reads like a
-  // different scale entirely. Lookups are unaffected: RATINGS[1.0] and
-  // RATINGS[Number('1.0')] both resolve via the same normalisation.
-  console.error(
-    `known: ${Object.keys(RATINGS)
-      .map((r) => Number(r).toFixed(1))
-      .join(' ')}`,
-  );
+  console.error(`known: ${Object.keys(RATINGS).map(fmtRating).join(' ')}`);
   process.exit(1);
 }
 
@@ -230,19 +232,46 @@ function flush() {
   }
 }
 
-// Persist whatever has been confirmed if the run is interrupted.
+// Stopping a run cleanly.
 //
-// This releases the lock itself rather than relying on lock.releaseOnExit():
-// handlers run in registration order and this one calls process.exit, so the
-// lock's own handler would never be reached. Registering first and exiting is
-// exactly how a lock gets left behind.
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    flush();
-    lock.release();
-    console.error(`\nInterrupted. ${added.length} puzzles kept.`);
-    process.exit(0);
-  });
+// Signals DO NOT WORK here, and it is worth being explicit about why. The
+// harvest loop is entirely synchronous — generate, solve and rate all block —
+// so Node never returns to the event loop, and a JS signal handler is only
+// ever invoked from the event loop. A `process.on('SIGTERM', ...)` registered
+// here is therefore never called while the loop is running. Verified with a
+// minimal repro: a SIGTERM to a process in a tight synchronous loop does not
+// reach the handler at all, and the process runs to completion. Only SIGKILL
+// stops it, and SIGKILL cannot be trapped, so the run gets no chance to
+// release its lock.
+//
+// So the stop signal is a FILE. The loop checks for it between batches, which
+// bounds the delay to one batch (200 puzzles, a few seconds) and needs no
+// cooperation from the event loop:
+//
+//   touch .harvest-stop
+//
+// The signal handlers below are kept as a best-effort fallback for the moments
+// the process IS at the event loop (start-up, and the SE subprocess call).
+const STOP_FILE = '.harvest-stop';
+
+// A stale sentinel from a previous run would stop this one immediately.
+if (existsSync(STOP_FILE)) unlinkSync(STOP_FILE);
+
+/** Flush, release the lock and exit. Shared by every stop path. */
+function shutdown(reason) {
+  flush();
+  lock.release();
+  // Deliberately NOT removing STOP_FILE. The overnight wrapper polls the same
+  // file to decide whether to start another pass; if this process deleted it,
+  // the wrapper would see it gone and immediately launch a new worker —
+  // observed, and it makes the run unstoppable. Whoever created the sentinel
+  // removes it.
+  console.error(`\n${reason} ${added.length} puzzles kept.`);
+  process.exit(0);
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => shutdown(`Interrupted by ${signal}.`));
 }
 
 const work = mkdtempSync(join(tmpdir(), 'tsudoku-'));
@@ -250,11 +279,16 @@ const symmetries = [ROTATIONAL_180, NO_SYMMETRY];
 
 const remaining = () => [...wanted].filter((r) => (have.get(r) ?? 0) < quota);
 
-console.error(`Targeting ${[...wanted].sort().join(', ')} to ${quota} each.`);
+console.error(
+  `Targeting ${[...wanted]
+    .sort((a, b) => a - b)
+    .map(fmtRating)
+    .join(', ')} to ${quota} each.`,
+);
 for (const r of [...wanted].sort()) {
   console.error(
-    `  ${r}  ${have.get(r) ?? 0}/${quota}  ${RATINGS[r]?.technique ?? '?'}` +
-      `  -> phase${RATINGS[r]?.phase ?? '?'}`,
+    `  ${fmtRating(r)}  ${have.get(r) ?? 0}/${quota}  ${RATINGS[r].technique}` +
+      `  -> phase${RATINGS[r].phase}`,
   );
 }
 
@@ -266,6 +300,8 @@ const startedAt = Date.now();
 const added = [];
 
 while (remaining().length > 0 && generated < 200000) {
+  if (existsSync(STOP_FILE)) shutdown(`Stopped via ${STOP_FILE}.`);
+
   const candidates = [];
   for (let i = 0; i < 200; i++) {
     const p = generate({ symmetry: symmetries[i % 2], rng });
@@ -284,7 +320,7 @@ while (remaining().length > 0 && generated < 200000) {
   if (progressEvery > 0 && generated - lastProgressAt >= progressEvery) {
     lastProgressAt = generated;
     const outstanding = remaining()
-      .map((r) => `${r}:${have.get(r) ?? 0}/${quota}`)
+      .map((r) => `${fmtRating(r)}:${have.get(r) ?? 0}/${quota}`)
       .join(' ');
     const rate = Math.round(generated / ((Date.now() - startedAt) / 1000));
     console.error(
@@ -335,7 +371,7 @@ while (remaining().length > 0 && generated < 200000) {
     // meant to run overnight — and it cost 82 puzzles once already.
     flush();
     console.error(
-      `  + ${rating} ${RATINGS[rating].technique.padEnd(20)} ` +
+      `  + ${fmtRating(rating)} ${RATINGS[rating].technique.padEnd(20)} ` +
         `${have.get(rating)}/${quota}  (${generated} generated)`,
     );
   }
