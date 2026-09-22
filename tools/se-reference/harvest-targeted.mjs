@@ -19,6 +19,10 @@
  * SE remains the oracle. The local solve only decides what is worth asking
  * about.
  *
+ * Ratings from both Phase 1 (1.0-2.5) and Phase 2 (2.6-4.4) can be harvested in
+ * one run. Each confirmed puzzle is written to the corpus file its rating
+ * belongs to — `phase1.jsonl` or `phase2.jsonl` — so a mixed run updates both.
+ *
  * Usage:
  *   node tools/se-reference/harvest-targeted.mjs [--progress[=N]] <quota> <rating...>
  *
@@ -29,6 +33,12 @@
  *
  * Example — fill the thin Phase 2 ratings to 20 each:
  *   node tools/se-reference/harvest-targeted.mjs 20 3.0 3.2 3.4 3.6 3.8 4.0 4.4
+ *
+ * Example — the two Phase 1 holes, which have never had any puzzles:
+ *   node tools/se-reference/harvest-targeted.mjs 100 1.0 1.9
+ *
+ * Be warned that 1.0 and 1.9 are *rare*: neither appeared once in 800 generated
+ * puzzles. Expect them to take far longer than their low ratings suggest.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs';
@@ -61,7 +71,7 @@ const quota = Number(quotaArg);
 const wanted = new Set(ratingArgs.map(Number));
 
 if (!quota || wanted.size === 0) {
-  console.error('usage: harvest-targeted.mjs <quota> <rating...>');
+  console.error('usage: harvest-targeted.mjs [--progress[=N]] <quota> <rating...>');
   process.exit(1);
 }
 
@@ -77,38 +87,94 @@ try {
 }
 lock.releaseOnExit();
 
-const CORPUS = 'benchmarks/corpus/phase2.jsonl';
+/**
+ * Every rating this harvester can chase, with the technique name the benchmark
+ * keys on and the corpus file it belongs in.
+ *
+ * The technique names must match `TECHNIQUE_DIFFICULTY` in
+ * packages/core/src/types/Technique.ts exactly. The runner filters the corpus
+ * to `IMPLEMENTED_TECHNIQUES`, which is that map's keys — so a typo here does
+ * not fail loudly, it makes the entry invisible and the technique silently
+ * unvalidated. That is the same failure mode that let DirectClaiming ship
+ * unvalidated in the first place.
+ *
+ * Note 1.0, 1.2 and 1.5 are all `HiddenSingle`. SE rates the same technique
+ * differently by context — 1.0 when the cell is the last empty one in a region
+ * ("full house"), 1.2 within a box, 1.5 along a line — and the existing corpus
+ * already follows that convention.
+ */
+const RATINGS = {
+  1.0: { technique: 'HiddenSingle', phase: 1 },
+  1.2: { technique: 'HiddenSingle', phase: 1 },
+  1.5: { technique: 'HiddenSingle', phase: 1 },
+  1.7: { technique: 'DirectPointing', phase: 1 },
+  1.9: { technique: 'DirectClaiming', phase: 1 },
+  2.0: { technique: 'DirectHiddenPair', phase: 1 },
+  2.3: { technique: 'NakedSingle', phase: 1 },
+  2.5: { technique: 'DirectHiddenTriplet', phase: 1 },
+  2.6: { technique: 'Pointing', phase: 2 },
+  2.8: { technique: 'Claiming', phase: 2 },
+  3.0: { technique: 'NakedPair', phase: 2 },
+  3.2: { technique: 'XWing', phase: 2 },
+  3.4: { technique: 'HiddenPair', phase: 2 },
+  3.6: { technique: 'NakedTriplet', phase: 2 },
+  3.8: { technique: 'Swordfish', phase: 2 },
+  4.0: { technique: 'HiddenTriplet', phase: 2 },
+  4.2: { technique: 'XYWing', phase: 2 },
+  4.4: { technique: 'XYZWing', phase: 2 },
+};
 
-/** The corpus as it is on disk right now. */
-function readCorpus() {
-  if (!existsSync(CORPUS)) return [];
-  return readFileSync(CORPUS, 'utf8')
+// Reject unknown ratings up front rather than crashing on the first hit, or —
+// worse — banking entries with a bogus technique name that the benchmark would
+// silently skip.
+const unknown = [...wanted].filter((r) => !(r in RATINGS));
+if (unknown.length > 0) {
+  console.error(`unknown rating(s): ${unknown.join(', ')}`);
+  // toFixed(1) because JS object keys normalise 1.0 to "1" — printing the raw
+  // keys would list "1 2 3 4" for the whole-number ratings, which reads like a
+  // different scale entirely. Lookups are unaffected: RATINGS[1.0] and
+  // RATINGS[Number('1.0')] both resolve via the same normalisation.
+  console.error(
+    `known: ${Object.keys(RATINGS)
+      .map((r) => Number(r).toFixed(1))
+      .join(' ')}`,
+  );
+  process.exit(1);
+}
+
+const corpusPath = (phase) => `benchmarks/corpus/phase${phase}.jsonl`;
+
+/** Which corpus files this run touches, derived from the requested ratings. */
+const phases = [...new Set([...wanted].map((r) => RATINGS[r]?.phase).filter(Boolean))];
+
+/** One corpus file as it is on disk right now. */
+function readCorpusFile(phase) {
+  const path = corpusPath(phase);
+  if (!existsSync(path)) return [];
+  return readFileSync(path, 'utf8')
     .trim()
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l));
 }
 
-const existing = readCorpus();
+/**
+ * Dedupe across BOTH corpus files, not just the ones being written.
+ *
+ * A puzzle's rating decides its file, so a puzzle already banked in phase1
+ * must not be re-added to phase2 (or vice versa) if a later run rates it
+ * differently. Reading every phase for the `seen` set costs one file read and
+ * removes a whole class of duplicate.
+ */
+const allExisting = [1, 2].flatMap((phase) => readCorpusFile(phase));
+const seen = new Set(allExisting.map((e) => e.puzzle));
 
 const have = new Map();
-const seen = new Set(existing.map((e) => e.puzzle));
-for (const entry of existing) {
+for (const entry of allExisting) {
   have.set(entry.se_rating, (have.get(entry.se_rating) ?? 0) + 1);
 }
 
-const RATING_TO_TECHNIQUE = {
-  2.6: 'Pointing',
-  2.8: 'Claiming',
-  3.0: 'NakedPair',
-  3.2: 'XWing',
-  3.4: 'HiddenPair',
-  3.6: 'NakedTriplet',
-  3.8: 'Swordfish',
-  4.0: 'HiddenTriplet',
-  4.2: 'XYWing',
-  4.4: 'XYZWing',
-};
+const startCounts = new Map(phases.map((phase) => [phase, readCorpusFile(phase).length]));
 
 let seed = Date.now() % 1e6;
 const rng = () => {
@@ -133,29 +199,35 @@ function localRating(puzzle) {
   return grid.cells.every((c) => c.value !== null) ? Math.round(hardest * 10) / 10 : null;
 }
 
-/** Rewrite the corpus with everything confirmed so far, sorted by rating. */
+/** Rewrite each touched corpus file with everything confirmed so far. */
 function flush() {
-  // Re-read rather than merging into the startup snapshot.
+  // Re-read rather than merging into a startup snapshot.
   //
-  // `existing` is a photograph of the corpus taken when this run began. If
-  // anything else has written since — a git pull, a merge, an earlier run
-  // whose work was committed — merging into that stale copy silently reverts
-  // it. That is how XWing went from 24 puzzles back to 22 between runs: the
-  // second harvester started first, finished later, and rewrote the file with
-  // a view of the world from before the first one's commit.
+  // A snapshot taken when the run began goes stale the moment anything else
+  // writes — a git pull, a merge, an earlier run whose work was committed —
+  // and merging into it silently reverts that work. That is how XWing went
+  // from 24 puzzles back to 22 between runs: the second harvester started
+  // first, finished later, and rewrote the file with a view of the world from
+  // before the first one's commit.
   //
   // The lock stops two harvesters overlapping. This stops a single harvester
   // undoing work that landed by any other route.
-  const onDisk = readCorpus();
-  const byPuzzle = new Map();
-  for (const entry of [...onDisk, ...added]) {
-    byPuzzle.set(entry.puzzle, entry);
-  }
+  for (const phase of phases) {
+    const mine = added.filter((e) => RATINGS[e.se_rating].phase === phase);
+    // Nothing new for this phase yet: leave the file untouched rather than
+    // rewriting it identically.
+    if (mine.length === 0) continue;
 
-  const merged = [...byPuzzle.values()].sort(
-    (a, b) => a.se_rating - b.se_rating || a.puzzle.localeCompare(b.puzzle),
-  );
-  writeFileSync(CORPUS, merged.map((e) => JSON.stringify(e)).join('\n') + '\n');
+    const byPuzzle = new Map();
+    for (const entry of [...readCorpusFile(phase), ...mine]) {
+      byPuzzle.set(entry.puzzle, entry);
+    }
+
+    const merged = [...byPuzzle.values()].sort(
+      (a, b) => a.se_rating - b.se_rating || a.puzzle.localeCompare(b.puzzle),
+    );
+    writeFileSync(corpusPath(phase), merged.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  }
 }
 
 // Persist whatever has been confirmed if the run is interrupted.
@@ -180,7 +252,10 @@ const remaining = () => [...wanted].filter((r) => (have.get(r) ?? 0) < quota);
 
 console.error(`Targeting ${[...wanted].sort().join(', ')} to ${quota} each.`);
 for (const r of [...wanted].sort()) {
-  console.error(`  ${r}  ${have.get(r) ?? 0}/${quota}  ${RATING_TO_TECHNIQUE[r] ?? '?'}`);
+  console.error(
+    `  ${r}  ${have.get(r) ?? 0}/${quota}  ${RATINGS[r]?.technique ?? '?'}` +
+      `  -> phase${RATINGS[r]?.phase ?? '?'}`,
+  );
 }
 
 let generated = 0;
@@ -252,7 +327,7 @@ while (remaining().length > 0 && generated < 200000) {
     added.push({
       puzzle,
       se_rating: rating,
-      se_technique: RATING_TO_TECHNIQUE[rating] ?? 'Unknown',
+      se_technique: RATINGS[rating].technique,
     });
     confirmed += 1;
     // Persist as we go. Writing only at the end means an interrupted run
@@ -260,7 +335,7 @@ while (remaining().length > 0 && generated < 200000) {
     // meant to run overnight — and it cost 82 puzzles once already.
     flush();
     console.error(
-      `  + ${rating} ${(RATING_TO_TECHNIQUE[rating] ?? '').padEnd(14)} ` +
+      `  + ${rating} ${RATINGS[rating].technique.padEnd(20)} ` +
         `${have.get(rating)}/${quota}  (${generated} generated)`,
     );
   }
@@ -268,7 +343,11 @@ while (remaining().length > 0 && generated < 200000) {
 
 flush();
 
+const summary = phases
+  .map((phase) => `phase${phase}: ${startCounts.get(phase)} -> ${readCorpusFile(phase).length}`)
+  .join(', ');
+
 console.error(
   `\nDone. ${generated} generated, ${localHits} passed the local filter, ` +
-    `${confirmed} confirmed by SE. ${CORPUS}: ${existing.length} -> ${readCorpus().length}.`,
+    `${confirmed} confirmed by SE. ${summary}.`,
 );
