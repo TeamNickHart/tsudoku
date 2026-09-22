@@ -34,8 +34,26 @@
 /** A digit 1..9, or null for an empty cell. */
 export type CellValue = number | null;
 
-/** Why a cell cannot be edited. */
-export type CellLock = 'given' | 'editable';
+/**
+ * Why a cell cannot be edited.
+ *
+ * - `given` — part of the puzzle. Never editable.
+ * - `placed` — the player entered a value here. Committed: it cannot be
+ *   overwritten or erased, and undo is the way back.
+ * - `editable` — empty, and open to a value or notes.
+ *
+ * Placing a digit being a *commitment* is a teaching decision, not a technical
+ * one. A board you can freely overwrite invites guess-and-check, which is the
+ * opposite of what this app is for; making a placement cost something means
+ * thinking before placing. Undo remains the escape hatch, and it deliberately
+ * rewinds the moves made since — that is the cost of a wrong guess, and it is
+ * the same cost a person pays on paper.
+ *
+ * Note this applies whether the entry was right or wrong. Unlocking only wrong
+ * entries would tell the player their digit was wrong the moment the cell
+ * stayed editable, turning the lock into an answer checker.
+ */
+export type CellLock = 'given' | 'placed' | 'editable';
 
 /**
  * A player's annotations on one cell.

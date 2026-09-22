@@ -35,8 +35,13 @@
     --board-error: 0 72% 51%;
 
     /* Board: notes */
-    --board-note: 215 16% 47%;
-    --board-note-stale: 25 95% 53%; /* a note the board has ruled out */
+    /* Notes sit at ~10px, so they need more contrast than body text, not less.
+       Measured on white: L=47% gave 4.72:1 at full strength but only 2.30:1
+       once auto-notes dropped to 60% opacity — under the 3:1 floor for large
+       text, let alone small. L=35% is 7.44:1 full and 4.48:1 at the 80%
+       opacity auto-notes now use. */
+    --board-note: 215 20% 35%;
+    --board-note-stale: 25 95% 40%; /* a note the board has ruled out */
 
     /* Board: selection and adjacency */
     --board-selected: 217 91% 60%;
@@ -72,8 +77,8 @@
     --board-entry: 213 94% 68%;
     --board-error: 0 84% 60%;
 
-    --board-note: 215 20% 65%;
-    --board-note-stale: 31 97% 62%;
+    --board-note: 215 20% 78%;
+    --board-note-stale: 31 97% 68%;
 
     --board-selected: 213 94% 68%;
     --board-peer: 217 33% 24%;

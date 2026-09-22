@@ -28,6 +28,15 @@ export function App(): JSX.Element {
   const game = useGame(puzzle.puzzle);
   const { state, cells, counts, errors, solved, remaining, mode, setMode, hint } = game;
 
+  // In value mode the target is the single selected cell. When it already
+  // holds a value there is nothing a digit press can do, so the pad says so
+  // rather than silently swallowing the press.
+  const valueTarget =
+    mode === 'value' && state.selected.length > 0
+      ? state.selected[state.selected.length - 1]
+      : undefined;
+  const targetLocked = valueTarget !== undefined && cells[valueTarget]?.lock !== 'editable';
+
   const band = bandForPuzzle(puzzle);
 
   const newPuzzle = useCallback(() => {
@@ -186,7 +195,8 @@ export function App(): JSX.Element {
         // Only erase needs a selection. Digits stay live so a digit can be
         // focused to scan the board without selecting a cell first — which is
         // exactly when you want to look.
-        eraseDisabled={state.selected.length === 0}
+        eraseDisabled={state.selected.length === 0 || targetLocked}
+        entryBlocked={targetLocked}
       />
 
       <div className="flex flex-wrap gap-2">

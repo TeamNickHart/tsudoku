@@ -215,13 +215,19 @@ function NoteGrid({
               'flex items-center justify-center text-[clamp(0.625rem,2.2vmin,0.8rem)]',
               'leading-none tabular-nums transition-opacity',
               'text-board-note',
-              isAuto && 'opacity-60',
-              excluded && 'line-through decoration-1 opacity-70',
+              // 80% not 60%: at 60% these measured 2.30:1 on white, below the
+              // 3:1 floor even for large text. The lighter weight still reads
+              // as "the app filled this in" without becoming unreadable.
+              isAuto && 'opacity-80',
+              excluded && 'line-through decoration-2 opacity-80',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
-              dimmedByFocus && 'opacity-25',
+              // 40% rather than 25%: dimming should push the other digits back,
+              // not make them unreadable. Still a wide gap from the focused
+              // digit at full strength.
+              dimmedByFocus && 'opacity-40',
               isFocusDigit && isIncluded && 'text-board-primary scale-125 font-bold opacity-100',
-              isFocusDigit && excluded && !isIncluded && 'opacity-30',
+              isFocusDigit && excluded && !isIncluded && 'opacity-50',
               ...roleClasses,
             )}
           >
