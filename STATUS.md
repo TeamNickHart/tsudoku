@@ -4,7 +4,7 @@
 > and what's next. CLAUDE.md holds durable conventions; this file holds the
 > moving parts. Update it as things land.
 
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-21
 
 ---
 
@@ -17,19 +17,18 @@ notes, undo, ask for a hint and get the engine's real technique explanation.
 (2.6) and Claiming (2.8) are ported from `Locking.java`; auto-notes fill from
 the engine's candidates and are cleared from peers when a value is placed.
 
-**Stage 2.3 is done.** The generator is ported and `phase2.jsonl` holds 105
-SE-rated puzzles, so Pointing and Claiming are finally validated against the
-oracle — **33/33 and 11/11, both 100%**. They had been shipping with no
-validation at all.
+**Stage 2.3 is done.** The generator is ported, and the harvester (with a
+local pre-filter, a corpus lock, and crash-safe incremental flushing) has
+filled `phase2.jsonl` to **836 SE-rated puzzles**.
 
-**Next up: stage 2.4 — the remaining Phase 2 techniques.** NakedSet, XWing,
-HiddenSet, Fisherman, XY/XYZ-Wing. `Locking.ts` is a working template, and
-`applyHint` already supports eliminations.
+**Stage 2.4 is done — all of Phase 2 is ported.** Locking, NakedSet, HiddenSet,
+Fisherman and XYWing cover SE 2.6-4.4; all sixteen producers are registered in
+`DEFAULT_PRODUCERS`. Parity is **1443/1443 (100.0%)**.
 
-Worth knowing before starting: the corpus is thin exactly where those
-techniques live — **one puzzle each at 3.2 (XWing), 3.8 (Swordfish) and 4.0
-(HiddenTriplet)**. Implementing them is only half the job; they cannot be
-validated until the corpus covers them. See 2.10.
+**Next up: the tutor layer (2.4t) — the reason the project exists.** The app
+can name a technique and place its digit; it cannot yet show _why_. The
+machinery is in place (`hintDecorations()` emits semantic roles, the UI renders
+them), so what is missing is _sequencing_: a lesson as an ordered list of steps.
 
 **Open questions, deliberately unresolved:**
 
@@ -61,9 +60,9 @@ domain `play.tsudoku.dev` deferred until tsudoku.dev moves to Cloudflare.
 
 ## Where We Actually Are
 
-Phase 1 is **complete and merged**, at **607/607 (100%) agreement with
-SudokuExplainer**. The engine correctly identifies and rates every direct
-technique in the SE 1.0–2.5 band.
+Phase 1 **and Phase 2** are complete and merged, at **1443/1443 (100%)
+agreement with SudokuExplainer**. The engine correctly identifies and rates
+every technique in the SE 1.0–4.4 band.
 
 > **Parity is measured against SE commit `b1f9ed4` (2025-01-22)** — the pinned
 > reference in `tools/se-reference/PINNED_COMMIT`. Run `pnpm se:check` to see
@@ -76,24 +75,43 @@ technique in the SE 1.0–2.5 band.
 | `@tsudoku/game`         | **Working** | State, moves, notes, history, decorations (~720 lines) |
 | `@tsudoku/solver`       | **Working** | Brute force, uniqueness, solution strings (~310 lines) |
 | `apps/web`              | **Working** | Playable, deployed (~820 lines)                        |
-| `@tsudoku/generator`    | Stub        | `export const VERSION` and nothing else                |
+| `@tsudoku/generator`    | **Working** | Generator + Symmetry ported (~320 lines)               |
 | `@tsudoku/cli`          | Stub        | same; `commander` already a declared dependency        |
 | `@tsudoku/react-native` | Stub        | same; intentionally deferred until web proves out      |
 | `docs/` (VitePress)     | Working     | Deploys to tsudoku.dev via Vercel                      |
-| `benchmarks/`           | Working     | SE parity runner + 607-puzzle corpus                   |
+| `benchmarks/`           | Working     | SE parity runner; 607 phase1 + 836 phase2 puzzles      |
 
 ### Implemented techniques
 
-All five producers are registered in `DEFAULT_PRODUCERS` in SE difficulty order:
+All sixteen producers are registered in `DEFAULT_PRODUCERS` in SE difficulty
+order. Corpus counts and parity, measured:
 
-| Technique            | SE rating       | Corpus | Validated |
-| -------------------- | --------------- | ------ | --------- |
-| `HiddenSingle`       | 1.0 / 1.2 / 1.5 | 204    | Yes       |
-| `DirectPointing`     | 1.7             | 100    | Yes       |
-| `DirectClaiming`     | 1.9             | **0**  | **No**    |
-| `DirectHiddenSet(2)` | 2.0             | 103    | Yes       |
-| `NakedSingle`        | 2.3             | 100    | Yes       |
-| `DirectHiddenSet(3)` | 2.5             | 100    | Yes       |
+| Technique            | SE rating | Corpus | Validated |
+| -------------------- | --------- | ------ | --------- |
+| `NakedSingle` (last) | 1.0       | **0**  | **No**    |
+| `HiddenSingle`       | 1.2 / 1.5 | 204    | 100%      |
+| `DirectPointing`     | 1.7       | 100    | 100%      |
+| `DirectClaiming`     | 1.9       | **0**  | **No**    |
+| `DirectHiddenSet(2)` | 2.0       | 103    | 100%      |
+| `NakedSingle`        | 2.3       | 100    | 100%      |
+| `DirectHiddenSet(3)` | 2.5       | 100    | 100%      |
+| `Locking(true)`      | 2.6       | **33** | 100%      |
+| `Locking(false)`     | 2.8       | **11** | 100%      |
+| `NakedSet(2)`        | 3.0       | 121    | 100%      |
+| `Fisherman(2)`       | 3.2       | 106    | 100%      |
+| `HiddenSet(2)`       | 3.4       | 112    | 100%      |
+| `NakedSet(3)`        | 3.6       | 104    | 100%      |
+| `Fisherman(3)`       | 3.8       | 100    | 100%      |
+| `HiddenSet(3)`       | 4.0       | 102    | 100%      |
+| `XYWing(false)`      | 4.2       | **37** | 100%      |
+| `XYWing(true)`       | 4.4       | 110    | 100%      |
+
+**Two Phase 1 ratings still have zero puzzles** — 1.0 (full house) and 1.9
+(DirectClaiming). The benchmark reports PASS for a technique with no corpus, so
+`DirectClaiming` has shipped in `DEFAULT_PRODUCERS` since Phase 1 with no
+SE-rating validation at all. Neither rating appeared once in 800 generated
+puzzles; they are rare, not overlooked. A targeted harvest is the fix, and it
+should be the _first_ thing an overnight run covers.
 
 ---
 
@@ -194,7 +212,7 @@ Port order should follow SE difficulty, since that is also roughly teaching
 order. Pointing and Claiming first: they are the simplest elimination
 techniques and the first ones a learner meets after singles.
 
-### 2.3 Generator — **next up**
+### 2.3 Generator — **done**
 
 This is not a new feature so much as **closing a hole that already exists**.
 `Pointing` and `Claiming` are implemented, registered in `DEFAULT_PRODUCERS`
@@ -496,7 +514,30 @@ same ratio. Filling the thin ratings needs targeted work — generate, rate,
 discard anything already well covered — which is exactly what a background
 process should be doing rather than blind accumulation.
 
-### 2.4 The tutor layer
+### 2.4 Phase 2 techniques — **done**
+
+All ported and validated against the SE oracle:
+
+| Technique     | SE  | Corpus | Parity |
+| ------------- | --- | ------ | ------ |
+| Pointing      | 2.6 | 33     | 100%   |
+| Claiming      | 2.8 | **11** | 100%   |
+| NakedPair     | 3.0 | 121    | 100%   |
+| XWing         | 3.2 | 106    | 100%   |
+| HiddenPair    | 3.4 | 112    | 100%   |
+| NakedTriplet  | 3.6 | 104    | 100%   |
+| Swordfish     | 3.8 | 100    | 100%   |
+| HiddenTriplet | 4.0 | 102    | 100%   |
+| XYWing        | 4.2 | **37** | 100%   |
+| XYZWing       | 4.4 | 110    | 100%   |
+
+**Corpus gaps worth closing:** Claiming (11), XYWing (37) and Pointing (33) sit
+well below the ~100 target. 100% on 11 puzzles is a weaker claim than 100% on
+110 — the gate passes, but on a thin sample. These are rated 1.38%, 4.62% and
+4.12% hit rate respectively, so they are among the _cheap_ ones to harvest;
+they are thin because earlier runs targeted the rare ratings.
+
+### 2.4t The tutor layer — **next**
 
 This is where the decoration model pays off. The machinery already exists:
 `hintDecorations()` turns a hint into targets with semantic roles, and the UI
@@ -562,11 +603,11 @@ The model supports more than the UI exposes:
 
 ### Stage 2 ordering
 
-1. `applyHint` eliminations — gates everything
-2. Pointing + Claiming — the first elimination techniques, and a real test of 1
-3. Generator + corpus for Phase 2
-4. Remaining Phase 2 techniques
-5. Tutor layer + first lessons
+1. ~~`applyHint` eliminations~~ — **done**, gated everything
+2. ~~Pointing + Claiming~~ — **done**
+3. ~~Generator + corpus for Phase 2~~ — **done** (836 puzzles)
+4. ~~Remaining Phase 2 techniques~~ — **done** (1443/1443)
+5. **Tutor layer + first lessons ← next**
 6. Notes UX and CLI, opportunistically
 7. Analytics and invite-only access (2.7) — last, and gated on wanting a backend
 
