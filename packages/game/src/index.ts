@@ -48,3 +48,6 @@ export {
 } from './game.js';
 
 export { applyHintAsMove, hintDecorations, hintHighlights, nextHint } from './hints.js';
+
+export { explain, explainOrSummarise, explainHiddenSingle, hasLesson } from './tutor/index.js';
+export type { Lesson, LessonStep } from './tutor/index.js';
