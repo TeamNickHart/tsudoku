@@ -595,15 +595,39 @@ well below the ~100 target. 100% on 11 puzzles is a weaker claim than 100% on
 4.12% hit rate respectively, so they are among the _cheap_ ones to harvest;
 they are thin because earlier runs targeted the rare ratings.
 
-### 2.4t The tutor layer — **next**
+### 2.4t The tutor layer — **started**
 
-This is where the decoration model pays off. The machinery already exists:
-`hintDecorations()` turns a hint into targets with semantic roles, and the UI
-already renders them. A tutorial step is the same shape.
+`packages/game/src/tutor/` turns a hint's _conclusion_ into its _reasoning_.
 
-What is missing is _sequencing_ — a lesson is an ordered list of steps, each
-with decorations and a caption, advanced by the learner. Deterministic; no AI
-needed at runtime.
+The gap this closes: a hint's explanation is one sentence ("9 can only go in
+R1C7 in box 3"), which states the finding rather than the argument. A learner
+who could see that would not have asked. The lesson layer derives the argument
+from the live board:
+
+1. every box holds each digit once, so box 3 needs a 9 somewhere
+2. 3 of these cells are already filled
+3. R1C9 can't be 9 — R8C9 already has one _(one step per ruled-out cell,
+   naming the specific digit doing the ruling out)_
+4. that leaves only R1C7, so it must be 9
+
+**Derived, not authored.** An explainer takes the real hint and the real grid,
+so a lesson works on whatever puzzle the player is stuck on, not only on
+curated examples. Deterministic; no AI at runtime.
+
+**Done:** the `Lesson`/`LessonStep` types, `explainHiddenSingle`, and
+`explainOrSummarise` — which falls back to a one-step lesson carrying the
+hint's own explanation, so the UI has a single code path and every technique
+added later needs no UI change.
+
+**Verified:** across 120 corpus puzzles, 4,922 lessons made **10,836**
+"X can't be N because Y has one" claims, and every one was checked against the
+board — the named blocker really holds that digit, really sees the cell it is
+cited against, and the ruled-out cell really is empty. **Zero false claims.**
+That check is a test, not a one-off: a lesson that reads plausibly but cites
+the wrong cell teaches a false rule the learner cannot catch.
+
+**Next:** explainers for the remaining techniques, and the UI to step through
+them. Teaching order should follow 2.4a, not SE rating order.
 
 ### 2.4a Teaching order is not SE rating order
 
