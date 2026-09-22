@@ -54,8 +54,18 @@ STEP="${3:-25}"
 # They are also the cheapest to fill (hit rates 4.12%, 1.38% and 4.62%), so
 # including them costs little and closes the widest gaps.
 #
-# Override by editing this line, or pass ratings after the positional args.
+# Any ratings given after the positional args replace this list entirely, e.g.
+#
+#   bash tools/se-reference/harvest-overnight.sh 8 100 25 1.0 1.9
+#
+# which targets the two Phase 1 holes and nothing else. Mixing phases in one
+# run is fine; the worker writes each puzzle to the corpus file its rating
+# belongs to.
 RATINGS=(2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0 4.2 4.4)
+if [ "$#" -gt 3 ]; then
+  shift 3
+  RATINGS=("$@")
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root" || exit 1
@@ -114,6 +124,7 @@ trap stop INT TERM HUP
 {
   echo "=== overnight harvest started $(date) ==="
   echo "running for ${HOURS}h, quota ${QUOTA} climbing by ${STEP}"
+  echo "ratings: ${RATINGS[*]}"
 } >> "$LOG"
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
