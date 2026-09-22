@@ -33,6 +33,7 @@ export {
   errorCells,
   fillNotes,
   isGiven,
+  isLocked,
   isSolved,
   redo,
   remainingCount,

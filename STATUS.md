@@ -44,10 +44,20 @@ them), so what is missing is _sequencing_: a lesson as an ordered list of steps.
   it solves the board) but only **~4 on DirectHiddenPair puzzles**. So the same
   feature is "a convenience" or "the app played your game" depending on the
   puzzle. Worth deciding what cascade depth is wanted before building.
-- **Whether a filled cell should lock** once entered. Options weighed: lock fully (undo is the only way back), block
-  overwrite but allow erase, or leave freely editable. The tension is that
-  locking fights exploration — recovering from a wrong guess would mean
-  discarding correct moves made since.
+- ~~**Whether a filled cell should lock** once entered.~~ **Decided: it locks
+  fully.** A placed digit cannot be overwritten or erased; undo is the only way
+  back, and it rewinds the moves made since. `CellLock` gained a `placed`
+  state alongside `given` and `editable`.
+
+  The cost is real and was accepted deliberately: recovering from a wrong guess
+  twenty moves ago means discarding twenty correct moves. That is the point —
+  a board you can freely overwrite invites guess-and-check, which is the
+  opposite of what this app teaches, and it is the same cost a person pays on
+  paper.
+
+  The lock applies whether the entry was right or wrong. Unlocking only wrong
+  entries would tell the player their digit was wrong the moment the cell
+  stayed editable, turning the lock into a free answer checker.
 
 ---
 

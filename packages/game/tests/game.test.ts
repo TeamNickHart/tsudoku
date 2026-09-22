@@ -9,6 +9,7 @@ import {
   includedNotes,
   errorCells,
   isGiven,
+  isLocked,
   isSolved,
   redo,
   remainingCount,
@@ -69,11 +70,41 @@ describe('entering values', () => {
     expect(after.entries[0]).toBe(5);
   });
 
-  it('clears a value', () => {
+  it('refuses to clear a placed value — undo is the way back', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
-    game = applyMove(game, { kind: 'clearValue', cell: BLANK });
+    const after = applyMove(game, { kind: 'clearValue', cell: BLANK });
+    expect(after).toBe(game); // unchanged, same reference
+    expect(after.entries[BLANK]).toBe(4);
+  });
+
+  it('refuses to overwrite a placed value', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
+    const after = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 7 });
+    expect(after).toBe(game);
+    expect(after.entries[BLANK]).toBe(4);
+  });
+
+  it('undo takes a placed value back out', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
+    expect(game.entries[BLANK]).toBe(4);
+    game = undo(game);
     expect(game.entries[BLANK]).toBeNull();
+    // ...and the cell is editable again, so the player is not stuck.
+    game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 7 });
+    expect(game.entries[BLANK]).toBe(7);
+  });
+
+  it('reports lock state: given, placed, editable', () => {
+    let game = createGame(EASY);
+    expect(cellView(game, 0).lock).toBe('given');
+    expect(cellView(game, BLANK).lock).toBe('editable');
+    game = applyMove(game, { kind: 'setValue', cell: BLANK, digit: 4 });
+    expect(cellView(game, BLANK).lock).toBe('placed');
+    expect(isLocked(game, BLANK)).toBe(true);
+    expect(isLocked(game, 0)).toBe(true);
   });
 
   it('ignores out-of-range cells and digits', () => {

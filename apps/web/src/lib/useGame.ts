@@ -102,6 +102,9 @@ function reducer(state: GameState, action: Action): GameState {
       if (state.selected.length === 0) return state;
       let next = clearDecorations(state);
       for (const cell of next.selected) {
+        // clearValue is a no-op on a placed cell — the game layer refuses it,
+        // and undo is the way back from a placement. Still dispatched rather
+        // than skipped, so a mixed selection erases the notes it can.
         next = applyMove(next, { kind: 'clearValue', cell });
         next = applyMove(next, { kind: 'clearNotes', cell });
       }

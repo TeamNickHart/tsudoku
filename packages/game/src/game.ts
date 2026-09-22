@@ -109,6 +109,16 @@ export function isGiven(state: GameState, cell: number): boolean {
   return !isBlank(state.puzzle[cell]!);
 }
 
+/**
+ * Whether a cell's value is committed — a given, or a digit the player placed.
+ *
+ * Both are closed to further edits; undo is the way back from a placement. See
+ * `CellLock` for why placements commit.
+ */
+export function isLocked(state: GameState, cell: number): boolean {
+  return isGiven(state, cell) || state.entries[cell] !== null;
+}
+
 function sorted(digits: Iterable<number>): readonly number[] {
   return [...new Set(digits)].sort((a, b) => a - b);
 }
@@ -158,6 +168,17 @@ function reduce(state: GameState, move: Move): GameState {
   // Givens are immutable. Silently ignoring is right here: the UI should not
   // offer the action, and a thrown error would turn a misclick into a crash.
   if (isGiven(state, move.cell)) {
+    return state;
+  }
+
+  // A placed value is committed — it cannot be overwritten or erased, and undo
+  // is the way back. Only the value-changing moves are blocked; notes on a
+  // filled cell are already a no-op below, and clearNotes stays available so a
+  // player can tidy up around a placement.
+  if (
+    (move.kind === 'setValue' || move.kind === 'clearValue') &&
+    state.entries[move.cell] !== null
+  ) {
     return state;
   }
 
@@ -503,7 +524,7 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
   return {
     index,
     value,
-    lock: isGiven(state, index) ? 'given' : 'editable',
+    lock: isGiven(state, index) ? 'given' : value !== null ? 'placed' : 'editable',
     notes,
     isError,
     staleNotes,
