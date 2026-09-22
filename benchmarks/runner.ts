@@ -29,6 +29,25 @@ const RATING_TOLERANCE = 0.05;
 /** Set of technique names that TSudoku currently has producers for. */
 const IMPLEMENTED_TECHNIQUES = new Set<string>(Object.keys(TECHNIQUE_DIFFICULTY) as Technique[]);
 
+/**
+ * Techniques that are implemented and correct but can never appear as a
+ * puzzle's SE rating, so an empty corpus for them is the permanent, correct
+ * state rather than a gap to be filled.
+ *
+ * Without this the summary looks identical to a technique nobody has got round
+ * to harvesting yet, which is exactly the blind spot that let DirectClaiming
+ * look validated for months.
+ */
+const UNREACHABLE_TECHNIQUES = new Map<string, string>([
+  [
+    'DirectClaiming',
+    'SE registers one producer for both Direct Pointing and Claiming, scans Block-first (1.7) ' +
+      'before Line-first (1.9), and runs HiddenSingle before it. A claiming hint induces a ' +
+      'hidden single by definition, so HiddenSingle always claims it first — 0 of 64,355 ' +
+      'solver steps had claiming as the sole option. See STATUS.md.',
+  ],
+]);
+
 const ALL_PHASES = [1, 2, 3, 4] as const;
 
 interface CorpusEntry {
@@ -233,6 +252,19 @@ function run(): void {
     `Overall: ${totalAgreed}/${totalEntries} (${overallPct.toFixed(1)}%) [${totalSkipped} skipped]`,
   );
   console.log(`Agreement threshold: ${AGREEMENT_THRESHOLD * 100}%`);
+
+  // Name the techniques whose empty corpus is expected, so a zero count is not
+  // mistaken for unfinished work.
+  const unreachable = [...UNREACHABLE_TECHNIQUES.keys()].filter(
+    (t) => !techniqueResults.has(t) && IMPLEMENTED_TECHNIQUES.has(t),
+  );
+  if (unreachable.length > 0) {
+    console.log();
+    console.log("Not rated by any puzzle (expected — implemented, but never a puzzle's rating):");
+    for (const technique of unreachable) {
+      console.log(`  ${technique}: ${UNREACHABLE_TECHNIQUES.get(technique)}`);
+    }
+  }
 
   // Performance report
   console.log();
