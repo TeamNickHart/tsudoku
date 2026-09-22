@@ -40,6 +40,8 @@ interface CellProps {
   readonly isPeer: boolean;
   /** True when this cell holds the same digit as the selected cell. */
   readonly isSameDigit: boolean;
+  /** The digit being scanned for, so notes for it can be picked out. */
+  readonly focusDigit: number | null;
   /** Pointer handlers from useDragSelect — drag to paint, tap to toggle. */
   readonly onPointerDown: (e: React.PointerEvent) => void;
   readonly onPointerEnter: () => void;
@@ -51,6 +53,7 @@ export function Cell({
   view,
   isPeer,
   isSameDigit,
+  focusDigit,
   onPointerDown,
   onPointerEnter,
   onActivate,
@@ -70,6 +73,13 @@ export function Cell({
 
   const row = Math.floor(index / SIZE);
   const col = index % SIZE;
+
+  // An empty cell where the focused digit is still a live candidate. This is
+  // the set the player is scanning for, so the cell itself gets a tint —
+  // picking out single notes at 10px is hard, and the cell-level cue is what
+  // makes the pattern visible across the whole board.
+  const holdsFocusNote =
+    focusDigit !== null && value === null && includedNotes.includes(focusDigit);
 
   return (
     <button
@@ -100,6 +110,9 @@ export function Cell({
         // rendered solid in some columns and faint or missing in others.
         'border-0',
         // Adjacency shading, then selection, then decorations — later wins.
+        holdsFocusNote &&
+          !isSelected &&
+          'bg-board-primary/10 ring-1 ring-inset ring-board-primary/40',
         isSameDigit && !isSelected && 'bg-board-peer/60',
         isPeer && !isSelected && !isSameDigit && 'bg-board-peer/30',
         isSelected && 'bg-board-selected/20 ring-2 ring-inset ring-board-selected',
@@ -123,6 +136,7 @@ export function Cell({
           notes={notes}
           included={includedNotes}
           staleNotes={staleNotes}
+          focusDigit={focusDigit}
           noteRoles={noteRoles}
         />
       )}
@@ -136,6 +150,8 @@ interface NoteGridProps {
   readonly included: readonly number[];
   readonly staleNotes: readonly number[];
   readonly noteRoles: CellView['noteRoles'];
+  /** The digit being scanned for. Its notes stand out; others recede. */
+  readonly focusDigit: number | null;
 }
 
 /**
@@ -144,7 +160,13 @@ interface NoteGridProps {
  * Every digit occupies a fixed position whether or not it is noted, so notes
  * do not jump around as they are added — which matters a lot when scanning.
  */
-function NoteGrid({ notes, included, staleNotes, noteRoles }: NoteGridProps): JSX.Element | null {
+function NoteGrid({
+  notes,
+  included,
+  staleNotes,
+  noteRoles,
+  focusDigit,
+}: NoteGridProps): JSX.Element | null {
   const hasAny = included.length > 0 || notes.excluded.length > 0;
   if (!hasAny) return null;
 
@@ -168,6 +190,18 @@ function NoteGrid({ notes, included, staleNotes, noteRoles }: NoteGridProps): JS
         // player wrote down. Show it rather than resolving it.
         const isConflict = isIncluded && excluded;
 
+        // Digit focus: the player pressed a number and wants to see where it
+        // can still go.
+        //
+        // A noted focus digit is what they are looking for, so it is pulled
+        // forward. A *struck* focus digit is the opposite — they have already
+        // ruled it out here — so it recedes rather than disappearing, since
+        // "I decided no" is information worth keeping visible. Everything
+        // else in the cell dims, which is what makes the scan work: the
+        // contrast comes from suppressing the noise, not from shouting.
+        const isFocusDigit = focusDigit === digit;
+        const dimmedByFocus = focusDigit !== null && !isFocusDigit;
+
         return (
           <span
             key={digit}
@@ -179,12 +213,15 @@ function NoteGrid({ notes, included, staleNotes, noteRoles }: NoteGridProps): JS
               // so 2.2vmin tracks it closely and the max only matters on very
               // wide screens.
               'flex items-center justify-center text-[clamp(0.625rem,2.2vmin,0.8rem)]',
-              'leading-none tabular-nums',
+              'leading-none tabular-nums transition-opacity',
               'text-board-note',
               isAuto && 'opacity-60',
               excluded && 'line-through decoration-1 opacity-70',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
+              dimmedByFocus && 'opacity-25',
+              isFocusDigit && isIncluded && 'text-board-primary scale-125 font-bold opacity-100',
+              isFocusDigit && excluded && !isIncluded && 'opacity-30',
               ...roleClasses,
             )}
           >

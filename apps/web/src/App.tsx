@@ -33,6 +33,7 @@ export function App(): JSX.Element {
   const newPuzzle = useCallback(() => {
     const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle);
     setPuzzle(next);
+    setFocusDigit(null);
     game.newGame(next.puzzle);
   }, [settings.bandId, puzzle.puzzle, game]);
 
@@ -57,8 +58,24 @@ export function App(): JSX.Element {
     [game, mode],
   );
 
+  /**
+   * The digit the player is currently thinking about.
+   *
+   * Pressing a digit does two things: it enters that digit into any selected
+   * cells (as before), and it focuses the digit so the board can show where it
+   * is still possible. Pressing the same digit again clears the focus, which
+   * is how you get back to an unhighlighted board without selecting something
+   * else.
+   *
+   * Entry and focus are deliberately the same gesture. A separate "highlight"
+   * mode would be one more thing to learn, and the digit you are entering is
+   * almost always the digit you want to see.
+   */
+  const [focusDigit, setFocusDigit] = useState<number | null>(null);
+
   const enterDigit = useCallback(
     (digit: number) => {
+      setFocusDigit((current) => (current === digit ? null : digit));
       game.dispatch({ type: 'digit', digit, mode });
     },
     [game, mode],
@@ -133,6 +150,7 @@ export function App(): JSX.Element {
         onToggleSelection={toggleSelection}
         onActivate={activateCell}
         multiSelect={mode !== 'value'}
+        focusDigit={focusDigit}
       />
 
       <div className="flex items-center justify-between text-sm">
@@ -164,7 +182,11 @@ export function App(): JSX.Element {
         counts={counts}
         onDigit={enterDigit}
         onErase={erase}
-        disabled={state.selected.length === 0}
+        focusDigit={focusDigit}
+        // Only erase needs a selection. Digits stay live so a digit can be
+        // focused to scan the board without selecting a cell first — which is
+        // exactly when you want to look.
+        eraseDisabled={state.selected.length === 0}
       />
 
       <div className="flex flex-wrap gap-2">

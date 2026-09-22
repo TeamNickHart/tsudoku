@@ -67,6 +67,8 @@ interface BoardProps {
   readonly onActivate: (index: number, additive: boolean) => void;
   /** False in value mode, where selecting a run has no meaning. */
   readonly multiSelect: boolean;
+  /** The digit being scanned for, from the number pad. */
+  readonly focusDigit: number | null;
 }
 
 /**
@@ -83,6 +85,7 @@ export function Board({
   onToggleSelection,
   onActivate,
   multiSelect,
+  focusDigit,
 }: BoardProps): JSX.Element {
   const { cellProps } = useDragSelect({
     onReplace: onReplaceSelection,
@@ -93,7 +96,12 @@ export function Board({
 
   const focus = selected.length === 1 ? selected[0] : undefined;
   const focusCell = focus === undefined ? undefined : cells[focus];
-  const focusDigit = focusCell?.value ?? null;
+
+  // An explicitly pressed digit wins over the one inferred from the selected
+  // cell. Pressing a digit is a deliberate "show me this"; selecting a cell is
+  // not, so the deliberate signal should not be overridden by where the cursor
+  // happens to be.
+  const activeDigit = focusDigit ?? focusCell?.value ?? null;
 
   const isPeer = (index: number): boolean => {
     if (focus === undefined) return false;
@@ -117,7 +125,8 @@ export function Board({
           key={view.index}
           view={view}
           isPeer={isPeer(view.index)}
-          isSameDigit={focusDigit !== null && view.value === focusDigit}
+          isSameDigit={activeDigit !== null && view.value === activeDigit}
+          focusDigit={focusDigit}
           onActivate={onActivate}
           {...cellProps(view.index)}
         />
