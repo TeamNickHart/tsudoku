@@ -41,7 +41,7 @@ type Action =
   | { type: 'select'; cell: number; additive: boolean; mode: InputMode }
   | { type: 'setSelection'; cells: readonly number[]; mode: InputMode }
   | { type: 'clearSelection' }
-  | { type: 'digit'; digit: number; mode: InputMode }
+  | { type: 'digit'; digit: number; mode: InputMode; autoNotes: boolean }
   | { type: 'erase' }
   | { type: 'undo' }
   | { type: 'redo' }
@@ -87,7 +87,26 @@ function reducer(state: GameState, action: Action): GameState {
         // mode cannot write a digit across several cells.
         const cell = state.selected[state.selected.length - 1];
         if (cell === undefined) return state;
-        return applyMove(cleared, { kind: 'setValue', cell, digit: action.digit });
+
+        const placed = applyMove(cleared, { kind: 'setValue', cell, digit: action.digit });
+        // Nothing happened — the cell was locked or the move was rejected — so
+        // leave the selection alone rather than clearing it for no reason.
+        if (placed === cleared) return placed;
+
+        // With auto-notes on, re-derive every empty cell's candidates so the
+        // board reflects the placement immediately. Placing already prunes the
+        // digit from peers' auto notes, but a placement can open up cells that
+        // had no notes yet, and refilling is what keeps "auto" honest.
+        const refreshed = action.autoNotes ? fillNotes(placed) : placed;
+
+        // Deselect after placing.
+        //
+        // Working through one digit means placing a 5, then looking for the
+        // next 5. Keeping the cell selected leaves its peer highlighting on
+        // top of the digit highlighting, which fights the scan. Clearing it
+        // puts the board back to "here is where 5 can still go" — and the
+        // digit stays focused, so that view survives the placement.
+        return setSelection(refreshed, []);
       }
       const note: NoteKind = action.mode === 'note-included' ? 'included' : 'excluded';
       return applyToSelection(cleared, (cell) => ({

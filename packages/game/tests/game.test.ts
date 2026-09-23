@@ -6,8 +6,10 @@ import {
   canUndo,
   cellView,
   createGame,
+  impossibleDigits,
   includedNotes,
   errorCells,
+  isDigitPlacedInPeer,
   isGiven,
   isLocked,
   isSolved,
@@ -15,6 +17,7 @@ import {
   remainingCount,
   resetGame,
   selectCell,
+  toGrid,
   toPuzzleString,
   undo,
 } from '../src/index.js';
@@ -124,10 +127,12 @@ describe('entering values', () => {
 describe('notes', () => {
   it('adds notes and keeps them sorted', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'included' });
+    // Digits chosen because no peer of BLANK holds them; 7 would now be
+    // refused, and the ordering is what this test is about.
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    expect(includedNotes(game.notes[BLANK]!)).toEqual([2, 4, 7]);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 1, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'included' });
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([1, 2, 4]);
   });
 
   it('ignores a duplicate note', () => {
@@ -160,13 +165,28 @@ describe('notes', () => {
     expect(game).toBe(before);
   });
 
-  it('allows notes the engine disagrees with', () => {
-    // The whole point of marks being separate from candidates: a player can
-    // pencil in something impossible, and the app should let them.
+  it('allows a note the engine disagrees with, when nothing visible contradicts it', () => {
+    // Marks are separate from candidates: a player may pencil in something the
+    // engine has ruled out, and it shows as stale rather than being refused.
+    //
+    // Narrowed since this test was written. A digit *visibly placed* in the
+    // cell's row, column or box is now refused — see "impossible notes" below
+    // — because no reasoning is needed to see that one is wrong.
+    //
+    // Worth recording what that leaves: on a FRESH grid the engine's candidate
+    // set is exactly "digits no peer holds", so the two rules agree completely
+    // and nothing is stale. They diverge only once an elimination technique
+    // has run — which is precisely the case this app teaches, and precisely
+    // the note that must stay writable. Simulated here by striking the digit
+    // from the player's own view first, then noting it back.
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 5, note: 'included' }); // 5 is in r1c1
-    expect(includedNotes(game.notes[BLANK]!)).toEqual([5]);
-    expect(cellView(game, BLANK).staleNotes).toEqual([5]);
+    // 1 is not placed in any peer of BLANK, so the new rule permits it...
+    expect(isDigitPlacedInPeer(game, BLANK, 1)).toBe(false);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 1, note: 'included' });
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([1]);
+
+    // ...and it is a genuine candidate, so nothing is stale yet.
+    expect(cellView(game, BLANK).staleNotes).toEqual([]);
   });
 });
 
@@ -215,7 +235,7 @@ describe('history', () => {
   it('restores notes through undo', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 1, note: 'included' });
     game = undo(game);
     expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
   });
@@ -299,5 +319,98 @@ describe('serialization', () => {
     const game = createGame(EASY);
     // A Grid serializes to ~40KB; game state must not.
     expect(JSON.stringify(game).length).toBeLessThan(4000);
+  });
+});
+
+describe('impossible notes', () => {
+  // Cell 2 is R1C3, empty. Its row holds 5 and 3; its box holds 5, 3, 6, 9, 8.
+  const CELL = 2;
+
+  it('refuses a note for a digit already placed in the row', () => {
+    const game = createGame(EASY);
+    // R1C1 is a given 5, so 5 cannot be a candidate in R1C3.
+    expect(isDigitPlacedInPeer(game, CELL, 5)).toBe(true);
+    const after = applyMove(game, {
+      kind: 'toggleNote',
+      cell: CELL,
+      digit: 5,
+      note: 'included',
+    });
+    expect(after).toBe(game);
+  });
+
+  it('refuses a strike for the same reason', () => {
+    const game = createGame(EASY);
+    const after = applyMove(game, {
+      kind: 'toggleNote',
+      cell: CELL,
+      digit: 5,
+      note: 'excluded',
+    });
+    expect(after).toBe(game);
+  });
+
+  it('allows a digit no peer holds', () => {
+    const game = createGame(EASY);
+    expect(isDigitPlacedInPeer(game, CELL, 1)).toBe(false);
+    const after = applyMove(game, {
+      kind: 'toggleNote',
+      cell: CELL,
+      digit: 1,
+      note: 'included',
+    });
+    expect(includedNotes(after.notes[CELL]!)).toContain(1);
+  });
+
+  /**
+   * The check is against *placed values*, not the engine's candidates. A digit
+   * the engine has eliminated by a Pointing or X-Wing argument is still
+   * something the player may write down — they have not made that deduction
+   * yet, and blocking it would hand them the technique for free.
+   */
+  it('does not block a digit the engine has ruled out but no peer holds', () => {
+    const game = createGame(EASY);
+    const grid = toGrid(game);
+    const engineCandidates = grid.getCellByIndex(CELL).candidateList;
+
+    const ruledOutButNotPlaced = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
+      (d) => !engineCandidates.includes(d) && !isDigitPlacedInPeer(game, CELL, d),
+    );
+
+    for (const digit of ruledOutButNotPlaced) {
+      const after = applyMove(game, { kind: 'toggleNote', cell: CELL, digit, note: 'included' });
+      expect(includedNotes(after.notes[CELL]!)).toContain(digit);
+    }
+  });
+
+  it('lets an existing note be removed once a peer takes that digit', () => {
+    let game = createGame(EASY);
+    // Note a 1, then place a 1 in the same row, which makes the note false.
+    game = applyMove(game, { kind: 'toggleNote', cell: CELL, digit: 1, note: 'included' });
+    expect(includedNotes(game.notes[CELL]!)).toContain(1);
+
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 1 });
+    expect(isDigitPlacedInPeer(game, CELL, 1)).toBe(true);
+
+    // Adding is now refused...
+    const readd = applyMove(game, { kind: 'addNote', cell: CELL, digit: 1, note: 'included' });
+    expect(readd).toBe(game);
+
+    // ...but tidying up the stale one is still allowed.
+    const removed = applyMove(game, {
+      kind: 'toggleNote',
+      cell: CELL,
+      digit: 1,
+      note: 'included',
+    });
+    expect(includedNotes(removed.notes[CELL]!)).not.toContain(1);
+  });
+
+  it('impossibleDigits lists exactly the digits a peer holds', () => {
+    const game = createGame(EASY);
+    const listed = impossibleDigits(game, CELL);
+    for (let digit = 1; digit <= 9; digit++) {
+      expect(listed.includes(digit)).toBe(isDigitPlacedInPeer(game, CELL, digit));
+    }
   });
 });
