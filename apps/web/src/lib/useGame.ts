@@ -174,21 +174,23 @@ export function useGame(initialPuzzle: string) {
   }, []);
 
   /**
-   * Switch input mode, collapsing a multi-selection when entering value mode.
+   * Switch input mode.
    *
-   * Without this, selecting a run in note mode and then switching to value
-   * would leave a selection that value mode cannot meaningfully act on.
+   * Note and strike share a selection: having marked a run as "could be 3",
+   * striking 7 across the same run is the obvious next thought, and making the
+   * player redraw it would be busywork.
+   *
+   * Value clears the selection instead of collapsing it to one cell. A run has
+   * no meaning in value mode, and silently keeping one of its cells selected
+   * means the next digit press lands somewhere the player did not choose —
+   * which is worse than starting clean.
    */
-  const changeMode = useCallback(
-    (next: InputMode) => {
-      setMode(next);
-      if (next === 'value' && state.selected.length > 1) {
-        const last = state.selected[state.selected.length - 1]!;
-        dispatch({ type: 'select', cell: last, additive: false, mode: next });
-      }
-    },
-    [state.selected],
-  );
+  const changeMode = useCallback((next: InputMode) => {
+    setMode(next);
+    if (next === 'value') {
+      dispatch({ type: 'clearSelection' });
+    }
+  }, []);
 
   const newGame = useCallback((puzzle: string) => {
     setHint(null);
