@@ -27,10 +27,10 @@ describe('excluded notes', () => {
   it('tracks included and excluded independently', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 9, note: 'excluded' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'excluded' });
 
     expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
-    expect(game.notes[BLANK]!.excluded).toEqual([9]);
+    expect(game.notes[BLANK]!.excluded).toEqual([2]);
   });
 
   it('lets a digit be in both sets — a contradiction the player wrote down', () => {
@@ -54,7 +54,7 @@ describe('excluded notes', () => {
   it('clears both sets at once', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 9, note: 'excluded' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'excluded' });
     game = applyMove(game, { kind: 'clearNotes', cell: BLANK });
 
     expect(includedNotes(game.notes[BLANK]!)).toEqual([]);
@@ -64,7 +64,7 @@ describe('excluded notes', () => {
   it('survives undo', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'excluded' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 7, note: 'excluded' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 1, note: 'excluded' });
     game = undo(game);
     expect(game.notes[BLANK]!.excluded).toEqual([4]);
   });
@@ -103,16 +103,18 @@ describe('multi-select', () => {
   it('applies a note to every selected cell', () => {
     let game = createGame(EASY);
     game = setSelection(game, [2, 3, 5]);
+    // 2 is the only digit no peer of any of these three cells holds, so it is
+    // the only one this can note across all of them.
     game = applyToSelection(game, (cell) => ({
       kind: 'addNote',
       cell,
-      digit: 4,
+      digit: 2,
       note: 'included',
     }));
 
-    expect(includedNotes(game.notes[2]!)).toEqual([4]);
-    expect(includedNotes(game.notes[3]!)).toEqual([4]);
-    expect(includedNotes(game.notes[5]!)).toEqual([4]);
+    expect(includedNotes(game.notes[2]!)).toEqual([2]);
+    expect(includedNotes(game.notes[3]!)).toEqual([2]);
+    expect(includedNotes(game.notes[5]!)).toEqual([2]);
     // One history entry per cell, so undo steps back one cell at a time.
     expect(game.history).toHaveLength(3);
   });
@@ -256,11 +258,11 @@ describe('fillNotes (auto-notes)', () => {
     let game = applyMove(createGame(EASY), {
       kind: 'addNote',
       cell: 2,
-      digit: 9,
+      digit: 2,
       note: 'excluded',
     });
     game = fillNotes(game, [2]);
-    expect(game.notes[2]!.excluded).toEqual([9]);
+    expect(game.notes[2]!.excluded).toEqual([2]);
     expect(includedNotes(game.notes[2]!).length).toBeGreaterThan(0);
   });
 });
@@ -340,7 +342,7 @@ describe('auto-clearing notes on placement', () => {
 
   it('marks auto-filled notes as auto and hand-written ones as not', () => {
     let game = createGame(EASY);
-    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 7, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 1, note: 'included' });
     expect(game.notes[2]!.auto).not.toContain(7);
 
     game = fillNotes(game, [3]);

@@ -63,6 +63,43 @@ function isBlank(ch: string): boolean {
 }
 
 /**
+ * Whether a digit is already placed in this cell's row, column or box.
+ *
+ * Deliberately a check against *placed values only*, not against the engine's
+ * candidates. A digit the engine has eliminated by a Pointing or X-Wing
+ * argument is still something the player is entitled to write down — they have
+ * not made that deduction yet, and blocking it would hand them the technique
+ * for free. What this rules out is the thing no reasoning is needed for: you
+ * cannot pencil a 3 into a row that already contains a 3.
+ *
+ * Note it also counts the player's own entries, wrong ones included. If they
+ * have placed a 3 in this row, refusing another 3 keeps their board internally
+ * consistent with what they believe — and undoing the 3 releases the
+ * restriction again.
+ */
+export function isDigitPlacedInPeer(state: GameState, cell: number, digit: number): boolean {
+  for (const peer of peerIndices(cell)) {
+    if (state.entries[peer] === digit) return true;
+  }
+  return false;
+}
+
+/**
+ * Digits that cannot sensibly be noted or struck in this cell.
+ *
+ * Exposed so the UI can show them as unavailable rather than letting a press
+ * silently do nothing — a control that looks live and does nothing reads as a
+ * bug.
+ */
+export function impossibleDigits(state: GameState, cell: number): readonly number[] {
+  const out: number[] = [];
+  for (let digit = 1; digit <= SIZE; digit++) {
+    if (isDigitPlacedInPeer(state, cell, digit)) out.push(digit);
+  }
+  return out;
+}
+
+/**
  * Start a new game from an 81-character puzzle string.
  *
  * The solution is computed once here. It is invariant for the life of the game,
@@ -216,6 +253,21 @@ function reduce(state: GameState, move: Move): GameState {
     case 'toggleNote': {
       // A note on a filled cell is meaningless.
       if (state.entries[move.cell] !== null) return state;
+      // Nor can a digit already placed in this row, column or box be a
+      // candidate here. Refusing the move keeps the player from recording
+      // something they can see is false — see isDigitPlacedInPeer for why this
+      // checks placed values rather than the engine's candidates.
+      //
+      // Removing such a note is still allowed: one may already exist from
+      // before the peer was filled, and the player must be able to tidy up.
+      if (isDigitPlacedInPeer(state, move.cell, move.digit)) {
+        const existing = state.notes[move.cell]!;
+        const present =
+          move.note === 'included'
+            ? includedNotes(existing).includes(move.digit)
+            : existing.excluded.includes(move.digit);
+        if (!present || move.kind === 'addNote') return state;
+      }
       const cellNotes = state.notes[move.cell]!;
       const current = move.note === 'included' ? includedNotes(cellNotes) : cellNotes.excluded;
 

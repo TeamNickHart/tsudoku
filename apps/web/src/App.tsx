@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SIZE } from '@tsudoku/core';
+import { isDigitPlacedInPeer } from '@tsudoku/game';
 import { Board } from '@/components/Board';
 import { NumberPad } from '@/components/NumberPad';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,19 @@ export function App(): JSX.Element {
       ? state.selected[state.selected.length - 1]
       : undefined;
   const targetLocked = valueTarget !== undefined && cells[valueTarget]?.lock !== 'editable';
+
+  // In note and strike modes, a digit already placed in a selected cell's row,
+  // column or box cannot be a candidate there. Shown as unavailable so the
+  // press does not look like it worked — the game layer refuses it either way.
+  //
+  // With several cells selected a digit is only blocked when it is impossible
+  // in *all* of them; otherwise the press still does useful work on the rest.
+  const unavailableDigits =
+    mode === 'value' || state.selected.length === 0
+      ? []
+      : Array.from({ length: SIZE }, (_, i) => i + 1).filter((digit) =>
+          state.selected.every((cell) => isDigitPlacedInPeer(state, cell, digit)),
+        );
 
   const band = bandForPuzzle(puzzle);
 
@@ -85,9 +99,9 @@ export function App(): JSX.Element {
   const enterDigit = useCallback(
     (digit: number) => {
       setFocusDigit((current) => (current === digit ? null : digit));
-      game.dispatch({ type: 'digit', digit, mode });
+      game.dispatch({ type: 'digit', digit, mode, autoNotes: settings.autoNotes });
     },
-    [game, mode],
+    [game, mode, settings.autoNotes],
   );
 
   const erase = useCallback(() => {
@@ -197,6 +211,7 @@ export function App(): JSX.Element {
         // exactly when you want to look.
         eraseDisabled={state.selected.length === 0 || targetLocked}
         entryBlocked={targetLocked}
+        unavailableDigits={unavailableDigits}
       />
 
       <div className="flex flex-wrap gap-2">

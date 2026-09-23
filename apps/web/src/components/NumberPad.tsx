@@ -16,6 +16,11 @@ interface NumberPadProps {
    * why entry will not happen.
    */
   readonly entryBlocked: boolean;
+  /**
+   * Digits that cannot be noted or struck in the current selection, because a
+   * peer already holds them. Dimmed and disabled rather than silently inert.
+   */
+  readonly unavailableDigits: readonly number[];
 }
 
 /**
@@ -35,6 +40,7 @@ export function NumberPad({
   focusDigit,
   eraseDisabled,
   entryBlocked,
+  unavailableDigits,
 }: NumberPadProps): JSX.Element {
   return (
     <div className="flex flex-col gap-2">
@@ -47,6 +53,12 @@ export function NumberPad({
         {Array.from({ length: SIZE }, (_, i) => i + 1).map((digit) => {
           const complete = (counts[digit] ?? 0) >= SIZE;
           const focused = focusDigit === digit;
+          // A digit already placed in a selected cell's row, column or box
+          // cannot be noted there. Dimmed, but NOT disabled: the press still
+          // sets the scan focus, and "where else can this digit go?" is a fair
+          // question about a digit that cannot go here. The game layer refuses
+          // only the note half.
+          const unavailable = unavailableDigits.includes(digit);
           return (
             <Button
               key={digit}
@@ -57,8 +69,9 @@ export function NumberPad({
                 'h-12 text-lg tabular-nums sm:h-14',
                 complete && 'text-muted-foreground/40',
                 focused && 'border-board-primary bg-board-primary/15 font-semibold',
+                unavailable && !focused && 'opacity-40',
               )}
-              aria-label={`Enter ${digit}${complete ? ' (all placed)' : ''}${focused ? ' (highlighting)' : ''}`}
+              aria-label={`Enter ${digit}${complete ? ' (all placed)' : ''}${focused ? ' (highlighting)' : ''}${unavailable ? ' (already in this row, column or box)' : ''}`}
             >
               {digit}
             </Button>

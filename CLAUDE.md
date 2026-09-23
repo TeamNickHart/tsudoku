@@ -558,6 +558,15 @@ decision.** Components render state and dispatch intents. If a component asks
   truth; the player's marks are a separate, possibly-wrong artifact. Keep them
   distinct fields. Conflating them is the classic Sudoku-app bug.
 
+  One deliberate narrowing: a digit **visibly placed** in the cell's row,
+  column or box cannot be noted or struck there (`isDigitPlacedInPeer`). That
+  needs no reasoning to see, so refusing it prevents a slip rather than doing
+  the player's thinking. Everything the engine rules out by an _argument_ —
+  Pointing, X-Wing, and the rest — stays writable, because handing those over
+  would give away the techniques this app exists to teach. Note that on a fresh
+  grid the two rules coincide exactly; they diverge only once eliminations have
+  been applied, which is the case that matters.
+
 ---
 
 ## Where AI Fits

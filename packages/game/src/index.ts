@@ -32,6 +32,8 @@ export {
   digitCounts,
   errorCells,
   fillNotes,
+  impossibleDigits,
+  isDigitPlacedInPeer,
   isGiven,
   isLocked,
   isSolved,
