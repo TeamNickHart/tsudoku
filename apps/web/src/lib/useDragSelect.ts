@@ -48,8 +48,22 @@ interface DragSelectOptions {
    * When false, dragging does not paint — the gesture degrades to a plain tap
    * on the cell where the pointer went down. Used for value mode, where a
    * multi-selection has no meaning.
+   *
+   * Note this is checked lazily, at the moment a drag first leaves its starting
+   * cell, rather than at pointer-down. That lets `onDragBegin` flip the mode
+   * and have painting start on the very same gesture.
    */
   readonly multiSelect: boolean;
+  /**
+   * Called once per drag, when the pointer first leaves the cell it went down
+   * on — the moment a press is definitely a drag and not a tap.
+   *
+   * Returning true means "painting is now allowed", which lets value mode
+   * switch itself to note mode and capture the run the player is drawing. A
+   * plain tap never fires this, so tapping a cell in value mode still just
+   * selects it.
+   */
+  readonly onDragBegin?: () => boolean;
 }
 
 interface DragSelectResult {
@@ -67,6 +81,7 @@ export function useDragSelect({
   onToggle,
   selected,
   multiSelect,
+  onDragBegin,
 }: DragSelectOptions): DragSelectResult {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -75,6 +90,9 @@ export function useDragSelect({
   const startCell = useRef<number | null>(null);
   const painted = useRef<Set<number>>(new Set());
   const movedToAnotherCell = useRef(false);
+  // Set once per drag by the first paintCell that leaves the start cell, so
+  // onDragBegin fires exactly once even though pointermove fires constantly.
+  const dragAnnounced = useRef(false);
 
   const finish = useCallback(() => {
     const start = startCell.current;
@@ -88,20 +106,30 @@ export function useDragSelect({
     startCell.current = null;
     painted.current = new Set();
     movedToAnotherCell.current = false;
+    dragAnnounced.current = false;
     setIsDragging(false);
   }, [onToggle]);
 
   const paintCell = useCallback(
     (index: number) => {
-      if (!multiSelect) return;
       if (startCell.current === null) return;
       if (painted.current.has(index)) return;
+
+      // First movement off the starting cell: this is a drag, not a tap.
+      // Give the host a chance to enable painting — value mode uses this to
+      // switch to note mode — and respect its answer for the rest of the drag.
+      let allowed = multiSelect;
+      if (!dragAnnounced.current) {
+        dragAnnounced.current = true;
+        if (!allowed && onDragBegin !== undefined) allowed = onDragBegin();
+      }
+      if (!allowed) return;
 
       movedToAnotherCell.current = true;
       painted.current.add(index);
       onReplace([...painted.current]);
     },
-    [onReplace, multiSelect],
+    [onReplace, multiSelect, onDragBegin],
   );
 
   /**
@@ -148,6 +176,7 @@ export function useDragSelect({
 
       startCell.current = index;
       movedToAnotherCell.current = false;
+      dragAnnounced.current = false;
 
       // Starting on a selected cell extends; starting elsewhere replaces.
       const extending = multiSelect && selected.includes(index);

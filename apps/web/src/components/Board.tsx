@@ -69,6 +69,11 @@ interface BoardProps {
   readonly multiSelect: boolean;
   /** The digit being scanned for, from the number pad. */
   readonly focusDigit: number | null;
+  /**
+   * Called when a press becomes a drag. Returning true lets the drag paint —
+   * value mode uses this to switch into note mode mid-gesture.
+   */
+  readonly onDragBegin?: () => boolean;
 }
 
 /**
@@ -86,12 +91,14 @@ export function Board({
   onActivate,
   multiSelect,
   focusDigit,
+  onDragBegin,
 }: BoardProps): JSX.Element {
   const { cellProps } = useDragSelect({
     onReplace: onReplaceSelection,
     onToggle: onToggleSelection,
     selected,
     multiSelect,
+    ...(onDragBegin === undefined ? {} : { onDragBegin }),
   });
 
   const focus = selected.length === 1 ? selected[0] : undefined;

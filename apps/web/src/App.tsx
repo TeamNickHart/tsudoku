@@ -53,6 +53,23 @@ export function App(): JSX.Element {
 
   const band = bandForPuzzle(puzzle);
 
+  /**
+   * A drag that starts in value mode becomes a note selection.
+   *
+   * The gesture declares the intent: dragging across cells only makes sense
+   * when you are about to annotate several of them, so there is no reason to
+   * make the player press "Note" first and then drag. A tap still just selects
+   * a cell, so single-cell value entry is untouched.
+   *
+   * Returning true tells the drag hook painting is now allowed, so the run
+   * being drawn is captured on this same gesture rather than the next one.
+   */
+  const handleDragBegin = useCallback((): boolean => {
+    if (mode !== 'value') return true;
+    setMode('note-included');
+    return true;
+  }, [mode, setMode]);
+
   const newPuzzle = useCallback(() => {
     const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle);
     setPuzzle(next);
@@ -174,6 +191,7 @@ export function App(): JSX.Element {
         onActivate={activateCell}
         multiSelect={mode !== 'value'}
         focusDigit={focusDigit}
+        onDragBegin={handleDragBegin}
       />
 
       <div className="flex items-center justify-between text-sm">
@@ -291,8 +309,9 @@ export function App(): JSX.Element {
       )}
 
       <p className="mt-auto text-xs text-muted-foreground">
-        Tap a cell or drag to select a run; tap again to deselect. Then type a digit. <kbd>V</kbd>{' '}
-        value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>⌘Z</kbd> undo
+        Tap a cell to enter a value. Drag across cells to select a run for notes. Note and strike
+        share a selection; switching to value clears it. <kbd>V</kbd> value · <kbd>N</kbd> note ·{' '}
+        <kbd>X</kbd> strike · <kbd>⌘Z</kbd> undo
       </p>
     </div>
   );
