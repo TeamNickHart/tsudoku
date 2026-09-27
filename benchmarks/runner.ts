@@ -8,10 +8,17 @@
  *   pnpm benchmark               # all phases with corpus data
  *   tsx runner.ts --phases=1      # phase 1 only (quick)
  *   tsx runner.ts --phases=1,2    # phases 1 and 2
+ *   tsx runner.ts --strict        # also fail on unvalidated techniques
+ *
+ * A technique that is implemented but has no corpus puzzle rated to it is
+ * "unvalidated": it contributes nothing to the agreement figures, so a green
+ * run says nothing about whether it works. Unless it is listed in
+ * UNREACHABLE_TECHNIQUES — where an empty corpus is the correct end state —
+ * that is a coverage gap, reported always and fatal under --strict.
  *
  * Exit codes:
  *   0 — all implemented techniques meet agreement threshold
- *   1 — one or more techniques below threshold
+ *   1 — one or more techniques below threshold, or (with --strict) unvalidated
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -49,6 +56,41 @@ const UNREACHABLE_TECHNIQUES = new Map<string, string>([
 ]);
 
 const ALL_PHASES = [1, 2, 3, 4] as const;
+const LAST_PHASE = 4;
+
+/**
+ * Upper SE-difficulty bound of each corpus phase, mirroring the bands in
+ * benchmarks/corpus/README.md: phase 1 is SE 1.0-2.5, phase 2 is 2.6-4.4,
+ * phase 3 is 4.5-6.0, phase 4 is 6.2 and up.
+ *
+ * Coverage is judged per phase, so a run over a subset of phases must only
+ * hold the techniques of those phases to account. Without this `--phases=1`
+ * would report every Phase 2 technique as unvalidated even though
+ * phase2.jsonl covers them, and a section that cries wolf gets ignored.
+ *
+ * Note this is the phase a technique's *corpus* lives in, keyed off its SE
+ * rating — not the source directory it was implemented in. NakedQuad and
+ * friends are implemented alongside Phase 2 but rated 5.0+, so their puzzles
+ * belong to phase3.jsonl.
+ */
+const PHASE_MAX_DIFFICULTY: Readonly<Record<number, number>> = {
+  1: 2.5,
+  2: 4.4,
+  3: 6.0,
+  4: Infinity,
+};
+
+/** The corpus phase a technique's puzzles are expected to live in. */
+function phaseForDifficulty(difficulty: number): number {
+  let lastPhase = LAST_PHASE;
+  for (const phase of ALL_PHASES) {
+    const max = PHASE_MAX_DIFFICULTY[phase];
+    if (max !== undefined && difficulty <= max) return phase;
+    lastPhase = phase;
+  }
+  // Above every band: the final phase is open-ended.
+  return lastPhase;
+}
 
 interface CorpusEntry {
   puzzle: string;
@@ -63,6 +105,10 @@ interface TechniqueResult {
   errors: string[];
   totalTimeMs: number;
   totalSteps: number;
+}
+
+function parseStrict(args: string[]): boolean {
+  return args.includes('--strict');
 }
 
 function parsePhases(args: string[]): number[] {
@@ -122,8 +168,67 @@ function ratingsAgree(tsudokuRating: number, seRating: number): boolean {
   return Math.abs(tsudokuRating - seRating) <= RATING_TOLERANCE;
 }
 
+/**
+ * Report implemented techniques in the selected phases that no corpus puzzle
+ * was rated to, excluding those known to be unrateable.
+ *
+ * A technique here is shipped but unproven: it may never fire, or fire wrongly,
+ * and the agreement figures would look identical either way. This is the
+ * counterpart to UNREACHABLE_TECHNIQUES — that map explains an empty corpus,
+ * this flags an empty corpus nobody has explained.
+ *
+ * Returns true if any technique is unvalidated.
+ */
+function reportUnvalidated(
+  phases: readonly number[],
+  rated: ReadonlySet<string>,
+  strict: boolean,
+): boolean {
+  const selected = new Set(phases);
+  const unvalidated = [...IMPLEMENTED_TECHNIQUES]
+    .filter((technique) => {
+      if (rated.has(technique) || UNREACHABLE_TECHNIQUES.has(technique)) return false;
+      const difficulty = TECHNIQUE_DIFFICULTY[technique as Technique];
+      return difficulty !== undefined && selected.has(phaseForDifficulty(difficulty));
+    })
+    .sort((a, b) => {
+      const da = TECHNIQUE_DIFFICULTY[a as Technique] ?? 0;
+      const db = TECHNIQUE_DIFFICULTY[b as Technique] ?? 0;
+      return da - db || a.localeCompare(b);
+    });
+
+  if (unvalidated.length === 0) return false;
+
+  console.log();
+  console.log(
+    strict
+      ? 'Unvalidated techniques (FAIL — implemented, but no corpus puzzle rates to them):'
+      : 'Unvalidated techniques (implemented, but no corpus puzzle rates to them):',
+  );
+  for (const technique of unvalidated) {
+    const difficulty = TECHNIQUE_DIFFICULTY[technique as Technique];
+    const phase = difficulty === undefined ? '?' : phaseForDifficulty(difficulty);
+    const rating = difficulty === undefined ? '?' : difficulty.toFixed(1);
+    console.log(
+      `  ! ${technique.padEnd(22)} SE ${rating.padEnd(4)} 0 puzzles — harvest into phase${phase}.jsonl`,
+    );
+  }
+  console.log();
+  console.log(`  These ${unvalidated.length} technique(s) are not covered by any corpus puzzle.`);
+  console.log('  Harvest corpus for each:  pnpm puzzle:build-corpus');
+  console.log('  If one can never be a puzzle rating, add it to UNREACHABLE_TECHNIQUES with');
+  console.log('  the reasoning instead (see DirectClaiming).');
+  if (!strict) {
+    console.log('  Re-run with --strict to treat this as a failure.');
+  }
+
+  return true;
+}
+
 function run(): void {
-  const phases = parsePhases(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const phases = parsePhases(args);
+  const strict = parseStrict(args);
   const corpusFiles = phases.map((p) => `phase${p}.jsonl`);
 
   let totalEntries = 0;
@@ -140,6 +245,7 @@ function run(): void {
   console.log('═'.repeat(60));
   console.log(`Phases: ${phases.join(', ')}`);
   console.log(`Implemented techniques: ${[...IMPLEMENTED_TECHNIQUES].join(', ')}`);
+  console.log(`Strict mode: ${strict ? 'on' : 'off'}`);
   console.log();
 
   for (const file of corpusFiles) {
@@ -209,6 +315,14 @@ function run(): void {
       'Generate corpus with: bash tools/se-reference/generate-corpus.sh data/puzzles/phase1-seeds.txt > benchmarks/corpus/phase1.jsonl',
     );
     console.log();
+
+    const anyUnvalidated = reportUnvalidated(phases, new Set(), strict);
+    console.log();
+
+    if (anyUnvalidated && strict) {
+      console.log('Status: FAIL (unvalidated techniques)');
+      process.exit(1);
+    }
     console.log('Status: PASS (no testable corpus data)');
     process.exit(0);
   }
@@ -266,6 +380,16 @@ function run(): void {
     }
   }
 
+  // A technique counts as validated only if puzzles were actually rated to it —
+  // a loaded corpus file says nothing on its own.
+  const rated = new Set(
+    [...techniqueResults.entries()].filter(([, r]) => r.total > 0).map(([technique]) => technique),
+  );
+  const anyUnvalidated = reportUnvalidated(phases, rated, strict);
+  if (anyUnvalidated && strict) {
+    hasFailed = true;
+  }
+
   // Performance report
   console.log();
   console.log('Performance');
@@ -293,10 +417,16 @@ function run(): void {
   console.log();
 
   if (hasFailed) {
-    console.log('Status: FAIL');
+    console.log(
+      anyUnvalidated && strict
+        ? 'Status: FAIL (agreement and/or unvalidated techniques)'
+        : 'Status: FAIL',
+    );
     process.exit(1);
   } else {
-    console.log('Status: PASS');
+    console.log(
+      anyUnvalidated ? 'Status: PASS (with unvalidated techniques — see above)' : 'Status: PASS',
+    );
     process.exit(0);
   }
 }
