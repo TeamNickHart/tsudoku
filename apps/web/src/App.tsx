@@ -125,8 +125,9 @@ export function App(): JSX.Element {
    * tapping one 5 after another while scanning should never switch the view
    * off.
    *
-   * An empty cell toggles in or out of the selection in note and strike modes,
-   * and becomes the single selected cell in value mode.
+   * An empty cell toggles in or out of the selection in note and strike modes.
+   * In value mode it becomes the single selected cell and the digit focus is
+   * cleared.
    */
   const tapCell = useCallback(
     (cell: number) => {
@@ -136,6 +137,10 @@ export function App(): JSX.Element {
         game.dispatch({ type: 'clearSelection' });
         return;
       }
+      // Selecting a cell to fill in value mode starts a fresh look at the
+      // board: the old digit's highlights would only compete with the
+      // selected cell's peers.
+      if (mode === 'value') setFocusDigit(null);
       game.dispatch({ type: 'select', cell, additive: true, mode });
     },
     [cells, game, mode],
