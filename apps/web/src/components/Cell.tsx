@@ -223,7 +223,10 @@ function NoteGrid({
               // 3:1 floor even for large text. The lighter weight still reads
               // as "the app filled this in" without becoming unreadable.
               isAuto && 'opacity-80',
-              excluded && 'line-through decoration-2 opacity-80',
+              // A strike is a pale gray digit under a red line: different
+              // in both color and mark from a live note, not just dimmer.
+              excluded && 'line-through decoration-board-strike decoration-[1.5px]',
+              excluded && !isConflict && 'text-board-struck',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
               // 40% rather than 25%: dimming should push the other digits back,
