@@ -891,6 +891,14 @@ Newest first. Keep entries short — what changed and why it mattered.
   rather than a contradiction (`CellView.liveNotes`, `conflictNotes`).
   Strikes are drawn as a pale gray digit under a 2px red line
   (`--board-struck`, `--board-strike`) so they never read as live notes.
+- **The Gentle band no longer serves nearly-solved boards.** The app's corpus
+  slice bucketed by technique alone and took the first 12 lines, which for
+  HiddenSingle were all SE 1.0 full-house puzzles (72–80 givens). It now
+  buckets by technique and rating and skips SE 1.0; a unit test caps givens.
+- **Solved history** (`lib/history.ts`, localStorage `tsudoku.history.v1`).
+  "New puzzle" prefers boards not yet solved, falls back to repeats once a
+  band is exhausted (labelled "Solved before"), and Settings shows
+  solved/total per band. The difficulty band was already sticky.
 - Found, not fixed: nothing ever applies the `.dark` class, so the dark board
   tokens are defined but unreachable — the app is light-only today.
 

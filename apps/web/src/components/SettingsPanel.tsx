@@ -1,6 +1,6 @@
 import { TECHNIQUE_DIFFICULTY } from '@tsudoku/core';
 import { Button } from '@/components/ui/button';
-import { DIFFICULTY_BANDS } from '@/lib/difficulty';
+import { DIFFICULTY_BANDS, puzzlesInBand, solvedInBand } from '@/lib/difficulty';
 import type { Settings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
   readonly settings: Settings;
+  /** Puzzles solved so far, for the per-band progress count. */
+  readonly solvedPuzzles: ReadonlySet<string>;
   readonly onSetBand: (bandId: string) => void;
   readonly onToggleAutoSolve: (technique: string) => void;
   readonly onSetAutoNotes: (enabled: boolean) => void;
@@ -38,6 +40,7 @@ const TECHNIQUE_LABELS: Record<string, string> = {
 
 export function SettingsPanel({
   settings,
+  solvedPuzzles,
   onSetBand,
   onToggleAutoSolve,
   onSetAutoNotes,
@@ -57,7 +60,8 @@ export function SettingsPanel({
           Difficulty
         </legend>
         <p className="mt-1 text-xs text-muted-foreground">
-          New puzzles are picked at random from the band you choose.
+          New puzzles are picked at random from the band you choose, skipping ones you have solved
+          until the band runs out.
         </p>
         <div className="mt-2 flex flex-col gap-1">
           {DIFFICULTY_BANDS.map((band) => {
@@ -76,7 +80,12 @@ export function SettingsPanel({
                     : 'border-transparent hover:bg-muted',
                 )}
               >
-                <span className="font-medium">{band.label}</span>
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium">{band.label}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {solvedInBand(band.id, solvedPuzzles)}/{puzzlesInBand(band.id).length} solved
+                  </span>
+                </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{band.blurb}</span>
               </button>
             );

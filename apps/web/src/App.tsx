@@ -8,6 +8,7 @@ import { useGame } from '@/lib/useGame';
 import type { InputMode } from '@/lib/useGame';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { bandForPuzzle, randomPuzzleInBand } from '@/lib/difficulty';
+import { useHistory } from '@/lib/history';
 import { useSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
@@ -24,10 +25,20 @@ export function App(): JSX.Element {
   // The first puzzle is drawn once, on mount. A lazy initialiser rather than a
   // plain call so a re-render never silently swaps the board out from under a
   // game in progress.
-  const [puzzle, setPuzzle] = useState(() => randomPuzzleInBand(settings.bandId));
+  const { solved: solvedPuzzles, recordSolved } = useHistory();
+  const [puzzle, setPuzzle] = useState(() =>
+    randomPuzzleInBand(settings.bandId, undefined, solvedPuzzles),
+  );
 
   const game = useGame(puzzle.puzzle);
   const { state, cells, counts, errors, solved, remaining, mode, setMode, hint } = game;
+
+  // Record a solve the moment it happens, so "New puzzle" stops offering it.
+  // newGame swaps the puzzle and resets the game in one update, so `solved`
+  // can never be true here for a puzzle the player has not finished.
+  useEffect(() => {
+    if (solved) recordSolved(puzzle.puzzle);
+  }, [solved, puzzle.puzzle, recordSolved]);
 
   // In value mode the target is the single selected cell. When it already
   // holds a value there is nothing a digit press can do, so the pad says so
@@ -54,7 +65,7 @@ export function App(): JSX.Element {
   const band = bandForPuzzle(puzzle);
 
   const newPuzzle = useCallback(() => {
-    const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle);
+    const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle, solvedPuzzles);
     setPuzzle(next);
     setFocusDigit(null);
     game.newGame(next.puzzle);
@@ -256,7 +267,14 @@ export function App(): JSX.Element {
             <span className="ml-2 text-board-error">{errors.length} wrong</span>
           )}
         </span>
-        {solved && <span className="font-medium text-board-primary">Solved</span>}
+        {solved ? (
+          <span className="font-medium text-board-primary">Solved</span>
+        ) : (
+          // Only reachable once the whole band is solved and repeats resume.
+          solvedPuzzles.has(puzzle.puzzle) && (
+            <span className="text-muted-foreground">Solved before</span>
+          )
+        )}
       </div>
 
       <div className="flex gap-2" role="group" aria-label="Input mode">
@@ -334,12 +352,13 @@ export function App(): JSX.Element {
       {showSettings && (
         <SettingsPanel
           settings={settings}
+          solvedPuzzles={solvedPuzzles}
           onSetBand={(bandId) => {
             setBand(bandId);
             // Switching band should show a puzzle from it straight away —
             // otherwise the setting looks like it did nothing until the next
             // "New puzzle" press.
-            const next = randomPuzzleInBand(bandId, puzzle.puzzle);
+            const next = randomPuzzleInBand(bandId, puzzle.puzzle, solvedPuzzles);
             setPuzzle(next);
             game.newGame(next.puzzle);
           }}
