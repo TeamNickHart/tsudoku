@@ -874,8 +874,9 @@ Newest first. Keep entries short — what changed and why it mattered.
     and strike stay put; value mode switches to note.
   - A press becomes a drag only after travelling 40% of a cell _and_ reaching
     another cell, so a sloppy tap cannot wipe a selection.
-  - A tap toggles one empty cell (note/strike) or selects it (value). A tap on
-    a filled cell focuses its digit and clears the selection.
+  - A tap toggles one empty cell (note/strike), or selects it and clears the
+    digit focus (value). A tap on a filled cell focuses its digit and clears
+    the selection.
   - Entering notes or strikes never clears the selection; tapping off the
     board (or Escape) resets everything to value mode with no focus.
   - A pad press with a selection _sets_ the focused digit rather than toggling
