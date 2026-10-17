@@ -374,6 +374,8 @@ help until those handler identities are stable.
    costs more than it saves.
 2. `React.memo` on `Cell`, keyed on the `CellView` it receives.
 3. Stabilise handler identity in `useDragSelect` so memo can actually bail out.
+   _Partly done (2026-10-17):_ its internal handlers are now stable, but
+   `cellProps(index)` still returns a fresh object per cell per render.
 4. Re-measure. Only keep what demonstrably helped.
 
 ### 2.9 CI: skip irrelevant work for docs-only changes
@@ -864,6 +866,33 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-10-17
+
+- **Board interaction made deliberate.** The rules, in one place:
+  - A drag always starts a new selection that includes its start cell. Note
+    and strike stay put; value mode switches to note.
+  - A press becomes a drag only after travelling 40% of a cell _and_ reaching
+    another cell, so a sloppy tap cannot wipe a selection.
+  - A tap toggles one empty cell (note/strike), or selects it and clears the
+    digit focus (value). A tap on a filled cell focuses its digit and clears
+    the selection.
+  - Entering notes or strikes never clears the selection; tapping off the
+    board (or Escape) resets everything to value mode with no focus.
+  - A pad press with a selection _sets_ the focused digit rather than toggling
+    it, so "focus 3, select, strike 3" keeps 3 highlighted.
+- **Why drags sometimes needed a second try:** the window listeners closed
+  over the handlers from pointer-down, so a drag that switched value → note
+  kept dispatching as value mode. A short drag lost its start cell outright.
+  Found by driving Chromium with CDP touch events; the old code fails the
+  short-drag and sloppy-tap scenarios, the new code passes all 27.
+- **Strikes override auto notes in the display.** A struck digit no longer
+  lights up under digit focus, and striking an auto note shows a plain strike
+  rather than a contradiction (`CellView.liveNotes`, `conflictNotes`).
+  Strikes are drawn as a pale gray digit under a 2px red line
+  (`--board-struck`, `--board-strike`) so they never read as live notes.
+- Found, not fixed: nothing ever applies the `.dark` class, so the dark board
+  tokens are defined but unreachable — the app is light-only today.
 
 ### 2026-09-20 (late)
 

@@ -43,6 +43,41 @@ describe('excluded notes', () => {
     expect(game.notes[BLANK]!.excluded).toEqual([4]);
   });
 
+  it('masks struck digits out of liveNotes, for manual and auto notes alike', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'excluded' });
+    expect(cellView(game, BLANK).includedNotes).toEqual([4]);
+    expect(cellView(game, BLANK).liveNotes).toEqual([]);
+
+    game = fillNotes(game);
+    const auto = game.notes[BLANK]!.auto;
+    expect(auto.length).toBeGreaterThan(0);
+    const struck = auto[0]!;
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
+    expect(cellView(game, BLANK).includedNotes).toContain(struck);
+    expect(cellView(game, BLANK).liveNotes).not.toContain(struck);
+  });
+
+  it('flags only manual notes as conflicts — a strike overrides an auto note', () => {
+    let game = fillNotes(createGame(EASY));
+    const struck = game.notes[BLANK]!.auto[0]!;
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
+    // Struck auto note: still in the data, but not a contradiction.
+    expect(game.notes[BLANK]!.auto).toContain(struck);
+    expect(cellView(game, BLANK).conflictNotes).toEqual([]);
+
+    // Un-striking brings the auto note straight back.
+    game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: struck, note: 'excluded' });
+    expect(cellView(game, BLANK).liveNotes).toContain(struck);
+
+    // A note the player wrote, then struck, is a contradiction they own.
+    game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
+    expect(cellView(game, BLANK).conflictNotes).toEqual([struck]);
+  });
+
   it('toggles a note off', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: 4, note: 'included' });

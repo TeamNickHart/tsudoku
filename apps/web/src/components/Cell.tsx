@@ -42,9 +42,8 @@ interface CellProps {
   readonly isSameDigit: boolean;
   /** The digit being scanned for, so notes for it can be picked out. */
   readonly focusDigit: number | null;
-  /** Pointer handlers from useDragSelect — drag to paint, tap to toggle. */
+  /** Pointer handler from useDragSelect, which tells taps from drags. */
   readonly onPointerDown: (e: React.PointerEvent) => void;
-  readonly onPointerEnter: () => void;
   /** Keyboard activation, which has no drag equivalent. */
   readonly onActivate: (index: number, additive: boolean) => void;
 }
@@ -55,7 +54,6 @@ export function Cell({
   isSameDigit,
   focusDigit,
   onPointerDown,
-  onPointerEnter,
   onActivate,
 }: CellProps): JSX.Element {
   const {
@@ -65,7 +63,8 @@ export function Cell({
     notes,
     isError,
     staleNotes,
-    includedNotes,
+    liveNotes,
+    conflictNotes,
     isSelected,
     roles,
     noteRoles,
@@ -77,9 +76,9 @@ export function Cell({
   // An empty cell where the focused digit is still a live candidate. This is
   // the set the player is scanning for, so the cell itself gets a tint —
   // picking out single notes at 10px is hard, and the cell-level cue is what
-  // makes the pattern visible across the whole board.
-  const holdsFocusNote =
-    focusDigit !== null && value === null && includedNotes.includes(focusDigit);
+  // makes the pattern visible across the whole board. Struck digits are
+  // masked out: the player has already said "not here".
+  const holdsFocusNote = focusDigit !== null && value === null && liveNotes.includes(focusDigit);
 
   return (
     <button
@@ -88,7 +87,6 @@ export function Cell({
       aria-pressed={isSelected}
       data-cell-index={index}
       onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
       onKeyDown={(e) => {
         // Pointer events do not fire for keyboard activation, so Enter/Space
         // are handled separately rather than relying on the click default.
@@ -134,7 +132,8 @@ export function Cell({
       ) : (
         <NoteGrid
           notes={notes}
-          included={includedNotes}
+          live={liveNotes}
+          conflicts={conflictNotes}
           staleNotes={staleNotes}
           focusDigit={focusDigit}
           noteRoles={noteRoles}
@@ -146,8 +145,10 @@ export function Cell({
 
 interface NoteGridProps {
   readonly notes: CellView['notes'];
-  /** Every noted digit, from either source. */
-  readonly included: readonly number[];
+  /** Noted digits not overridden by a strike. */
+  readonly live: readonly number[];
+  /** Digits the player both noted and struck. */
+  readonly conflicts: readonly number[];
   readonly staleNotes: readonly number[];
   readonly noteRoles: CellView['noteRoles'];
   /** The digit being scanned for. Its notes stand out; others recede. */
@@ -162,33 +163,36 @@ interface NoteGridProps {
  */
 function NoteGrid({
   notes,
-  included,
+  live,
+  conflicts,
   staleNotes,
   noteRoles,
   focusDigit,
 }: NoteGridProps): JSX.Element | null {
-  const hasAny = included.length > 0 || notes.excluded.length > 0;
+  const hasAny = live.length > 0 || notes.excluded.length > 0;
   if (!hasAny) return null;
 
   return (
     <div className="grid h-full w-full grid-cols-3 grid-rows-3 p-[6%]">
       {Array.from({ length: SIZE }, (_, i) => i + 1).map((digit) => {
-        const isIncluded = included.includes(digit);
+        // A strike overrides an auto note underneath it, so a struck auto
+        // digit is not live and renders as a plain strike.
+        const isLive = live.includes(digit);
         const excluded = notes.excluded.includes(digit);
-        if (!isIncluded && !excluded) {
+        if (!isLive && !excluded) {
           return <span key={digit} aria-hidden />;
         }
 
-        const isStale = staleNotes.includes(digit);
+        // A digit marked both possible and impossible by the player is a
+        // contradiction they wrote down. Show it rather than resolving it.
+        const isConflict = conflicts.includes(digit);
+        const isStale = staleNotes.includes(digit) && (isLive || isConflict);
         // Auto notes render lighter: the app maintains them, and they vanish
         // on their own when a placement rules them out. A note the player wrote
         // stays put and goes stale instead.
-        const isAuto = notes.auto.includes(digit);
+        const isAuto = isLive && notes.auto.includes(digit);
         const roles = noteRoles[digit] ?? [];
         const roleClasses = roles.map((r) => NOTE_ROLE_STYLES[r] ?? '');
-        // A digit marked both possible and impossible is a contradiction the
-        // player wrote down. Show it rather than resolving it.
-        const isConflict = isIncluded && excluded;
 
         // Digit focus: the player pressed a number and wants to see where it
         // can still go.
@@ -219,15 +223,21 @@ function NoteGrid({
               // 3:1 floor even for large text. The lighter weight still reads
               // as "the app filled this in" without becoming unreadable.
               isAuto && 'opacity-80',
-              excluded && 'line-through decoration-2 opacity-80',
+              // A strike is a pale gray digit under a red line: different
+              // in both color and mark from a live note, not just dimmer.
+              // 2px, not thinner: the line is what has to read at a glance.
+              // The digit can be inferred from its fixed slot in the 3x3
+              // note grid, so it is fine for the line to cover it.
+              excluded && 'line-through decoration-board-strike decoration-2',
+              excluded && !isConflict && 'text-board-struck',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
               // 40% rather than 25%: dimming should push the other digits back,
               // not make them unreadable. Still a wide gap from the focused
               // digit at full strength.
               dimmedByFocus && 'opacity-40',
-              isFocusDigit && isIncluded && 'text-board-primary scale-125 font-bold opacity-100',
-              isFocusDigit && excluded && !isIncluded && 'opacity-50',
+              isFocusDigit && isLive && 'text-board-primary scale-125 font-bold opacity-100',
+              isFocusDigit && excluded && 'opacity-50',
               ...roleClasses,
             )}
           >
