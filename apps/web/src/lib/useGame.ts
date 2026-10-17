@@ -39,7 +39,7 @@ export type InputMode = 'value' | 'note-included' | 'note-excluded';
 type Action =
   | { type: 'newGame'; puzzle: string }
   | { type: 'select'; cell: number; additive: boolean; mode: InputMode }
-  | { type: 'setSelection'; cells: readonly number[]; mode: InputMode }
+  | { type: 'setSelection'; cells: readonly number[] }
   | { type: 'clearSelection' }
   | { type: 'digit'; digit: number; mode: InputMode; autoNotes: boolean }
   | { type: 'erase' }
@@ -67,12 +67,12 @@ function reducer(state: GameState, action: Action): GameState {
         ? toggleCellSelection(state, action.cell)
         : selectCell(state, action.cell);
 
+    // Mode-agnostic on purpose. Only a drag dispatches this, and a drag always
+    // means a multi-selection — App switches value mode to note mode in the
+    // same update. Branching on the mode here was how a value-mode drag used
+    // to collapse to a single cell: the action carried the mode from before
+    // the switch.
     case 'setSelection':
-      if (action.mode === 'value') {
-        // A drag in value mode selects only where it ended.
-        const last = action.cells[action.cells.length - 1];
-        return last === undefined ? state : selectCell(state, last);
-      }
       return setSelection(state, action.cells);
 
     case 'clearSelection':

@@ -42,9 +42,8 @@ interface CellProps {
   readonly isSameDigit: boolean;
   /** The digit being scanned for, so notes for it can be picked out. */
   readonly focusDigit: number | null;
-  /** Pointer handlers from useDragSelect — drag to paint, tap to toggle. */
+  /** Pointer handler from useDragSelect, which tells taps from drags. */
   readonly onPointerDown: (e: React.PointerEvent) => void;
-  readonly onPointerEnter: () => void;
   /** Keyboard activation, which has no drag equivalent. */
   readonly onActivate: (index: number, additive: boolean) => void;
 }
@@ -55,7 +54,6 @@ export function Cell({
   isSameDigit,
   focusDigit,
   onPointerDown,
-  onPointerEnter,
   onActivate,
 }: CellProps): JSX.Element {
   const {
@@ -89,7 +87,6 @@ export function Cell({
       aria-pressed={isSelected}
       data-cell-index={index}
       onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
       onKeyDown={(e) => {
         // Pointer events do not fire for keyboard activation, so Enter/Space
         // are handled separately rather than relying on the click default.
