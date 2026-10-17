@@ -65,8 +65,8 @@ export function Cell({
     notes,
     isError,
     staleNotes,
-    includedNotes,
     liveNotes,
+    conflictNotes,
     isSelected,
     roles,
     noteRoles,
@@ -135,7 +135,8 @@ export function Cell({
       ) : (
         <NoteGrid
           notes={notes}
-          included={includedNotes}
+          live={liveNotes}
+          conflicts={conflictNotes}
           staleNotes={staleNotes}
           focusDigit={focusDigit}
           noteRoles={noteRoles}
@@ -147,8 +148,10 @@ export function Cell({
 
 interface NoteGridProps {
   readonly notes: CellView['notes'];
-  /** Every noted digit, from either source. */
-  readonly included: readonly number[];
+  /** Noted digits not overridden by a strike. */
+  readonly live: readonly number[];
+  /** Digits the player both noted and struck. */
+  readonly conflicts: readonly number[];
   readonly staleNotes: readonly number[];
   readonly noteRoles: CellView['noteRoles'];
   /** The digit being scanned for. Its notes stand out; others recede. */
@@ -163,33 +166,36 @@ interface NoteGridProps {
  */
 function NoteGrid({
   notes,
-  included,
+  live,
+  conflicts,
   staleNotes,
   noteRoles,
   focusDigit,
 }: NoteGridProps): JSX.Element | null {
-  const hasAny = included.length > 0 || notes.excluded.length > 0;
+  const hasAny = live.length > 0 || notes.excluded.length > 0;
   if (!hasAny) return null;
 
   return (
     <div className="grid h-full w-full grid-cols-3 grid-rows-3 p-[6%]">
       {Array.from({ length: SIZE }, (_, i) => i + 1).map((digit) => {
-        const isIncluded = included.includes(digit);
+        // A strike overrides an auto note underneath it, so a struck auto
+        // digit is not live and renders as a plain strike.
+        const isLive = live.includes(digit);
         const excluded = notes.excluded.includes(digit);
-        if (!isIncluded && !excluded) {
+        if (!isLive && !excluded) {
           return <span key={digit} aria-hidden />;
         }
 
-        const isStale = staleNotes.includes(digit);
+        // A digit marked both possible and impossible by the player is a
+        // contradiction they wrote down. Show it rather than resolving it.
+        const isConflict = conflicts.includes(digit);
+        const isStale = staleNotes.includes(digit) && (isLive || isConflict);
         // Auto notes render lighter: the app maintains them, and they vanish
         // on their own when a placement rules them out. A note the player wrote
         // stays put and goes stale instead.
-        const isAuto = notes.auto.includes(digit);
+        const isAuto = isLive && notes.auto.includes(digit);
         const roles = noteRoles[digit] ?? [];
         const roleClasses = roles.map((r) => NOTE_ROLE_STYLES[r] ?? '');
-        // A digit marked both possible and impossible is a contradiction the
-        // player wrote down. Show it rather than resolving it.
-        const isConflict = isIncluded && excluded;
 
         // Digit focus: the player pressed a number and wants to see where it
         // can still go.
@@ -227,10 +233,7 @@ function NoteGrid({
               // not make them unreadable. Still a wide gap from the focused
               // digit at full strength.
               dimmedByFocus && 'opacity-40',
-              isFocusDigit &&
-                isIncluded &&
-                !excluded &&
-                'text-board-primary scale-125 font-bold opacity-100',
+              isFocusDigit && isLive && 'text-board-primary scale-125 font-bold opacity-100',
               isFocusDigit && excluded && 'opacity-50',
               ...roleClasses,
             )}
