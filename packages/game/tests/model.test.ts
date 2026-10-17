@@ -43,6 +43,22 @@ describe('excluded notes', () => {
     expect(game.notes[BLANK]!.excluded).toEqual([4]);
   });
 
+  it('masks struck digits out of liveNotes, for manual and auto notes alike', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'excluded' });
+    expect(cellView(game, BLANK).includedNotes).toEqual([4]);
+    expect(cellView(game, BLANK).liveNotes).toEqual([]);
+
+    game = fillNotes(game);
+    const auto = game.notes[BLANK]!.auto;
+    expect(auto.length).toBeGreaterThan(0);
+    const struck = auto[0]!;
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
+    expect(cellView(game, BLANK).includedNotes).toContain(struck);
+    expect(cellView(game, BLANK).liveNotes).not.toContain(struck);
+  });
+
   it('toggles a note off', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: 4, note: 'included' });

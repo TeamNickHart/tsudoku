@@ -66,6 +66,7 @@ export function Cell({
     isError,
     staleNotes,
     includedNotes,
+    liveNotes,
     isSelected,
     roles,
     noteRoles,
@@ -77,9 +78,9 @@ export function Cell({
   // An empty cell where the focused digit is still a live candidate. This is
   // the set the player is scanning for, so the cell itself gets a tint —
   // picking out single notes at 10px is hard, and the cell-level cue is what
-  // makes the pattern visible across the whole board.
-  const holdsFocusNote =
-    focusDigit !== null && value === null && includedNotes.includes(focusDigit);
+  // makes the pattern visible across the whole board. Struck digits are
+  // masked out: the player has already said "not here".
+  const holdsFocusNote = focusDigit !== null && value === null && liveNotes.includes(focusDigit);
 
   return (
     <button
@@ -226,8 +227,11 @@ function NoteGrid({
               // not make them unreadable. Still a wide gap from the focused
               // digit at full strength.
               dimmedByFocus && 'opacity-40',
-              isFocusDigit && isIncluded && 'text-board-primary scale-125 font-bold opacity-100',
-              isFocusDigit && excluded && !isIncluded && 'opacity-50',
+              isFocusDigit &&
+                isIncluded &&
+                !excluded &&
+                'text-board-primary scale-125 font-bold opacity-100',
+              isFocusDigit && excluded && 'opacity-50',
               ...roleClasses,
             )}
           >

@@ -581,6 +581,7 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
     isError,
     staleNotes,
     includedNotes: included,
+    liveNotes: included.filter((d) => !notes.excluded.includes(d)),
     isSelected: state.selected.includes(index),
     roles,
     noteRoles,
