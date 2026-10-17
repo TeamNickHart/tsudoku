@@ -42,6 +42,12 @@
        opacity auto-notes now use. */
     --board-note: 215 20% 35%;
     --board-note-stale: 25 95% 40%; /* a note the board has ruled out */
+    /* Strikes: the digit fades to a pale gray and the line carries the
+       meaning in red, so "ruled out" reads at a glance and never looks like
+       a live note. The gray is deliberately below the note contrast floor —
+       a strike should recede — while the red line stays fully visible. */
+    --board-struck: 215 14% 68%;
+    --board-strike: 0 72% 51%;
 
     /* Board: selection and adjacency */
     --board-selected: 217 91% 60%;
@@ -79,6 +85,8 @@
 
     --board-note: 215 20% 78%;
     --board-note-stale: 31 97% 68%;
+    --board-struck: 215 12% 44%;
+    --board-strike: 0 84% 60%;
 
     --board-selected: 213 94% 68%;
     --board-peer: 217 33% 24%;

@@ -59,21 +59,16 @@ function BoardLines(): JSX.Element {
 interface BoardProps {
   readonly cells: readonly CellView[];
   readonly selected: readonly number[];
-  /** Replace the whole selection — used while painting a drag. */
-  readonly onReplaceSelection: (cells: readonly number[]) => void;
-  /** Toggle one cell in or out — used for taps. */
-  readonly onToggleSelection: (cell: number) => void;
+  /** A press on a cell that never became a drag. */
+  readonly onTap: (cell: number) => void;
+  /** A press just became a drag — fires once, before the first `onPaint`. */
+  readonly onDragStart: () => void;
+  /** The cells the current drag has covered, start cell first. */
+  readonly onPaint: (cells: readonly number[]) => void;
   /** Keyboard activation. */
   readonly onActivate: (index: number, additive: boolean) => void;
-  /** False in value mode, where selecting a run has no meaning. */
-  readonly multiSelect: boolean;
   /** The digit being scanned for, from the number pad. */
   readonly focusDigit: number | null;
-  /**
-   * Called when a press becomes a drag. Returning true lets the drag paint —
-   * value mode uses this to switch into note mode mid-gesture.
-   */
-  readonly onDragBegin?: () => boolean;
 }
 
 /**
@@ -86,20 +81,13 @@ interface BoardProps {
 export function Board({
   cells,
   selected,
-  onReplaceSelection,
-  onToggleSelection,
+  onTap,
+  onDragStart,
+  onPaint,
   onActivate,
-  multiSelect,
   focusDigit,
-  onDragBegin,
 }: BoardProps): JSX.Element {
-  const { cellProps } = useDragSelect({
-    onReplace: onReplaceSelection,
-    onToggle: onToggleSelection,
-    selected,
-    multiSelect,
-    ...(onDragBegin === undefined ? {} : { onDragBegin }),
-  });
+  const { cellProps } = useDragSelect({ onTap, onDragStart, onPaint });
 
   const focus = selected.length === 1 ? selected[0] : undefined;
   const focusCell = focus === undefined ? undefined : cells[focus];

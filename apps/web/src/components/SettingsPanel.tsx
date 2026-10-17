@@ -44,7 +44,7 @@ export function SettingsPanel({
   onClose,
 }: SettingsPanelProps): JSX.Element {
   return (
-    <div className="rounded-lg border bg-card p-4 text-sm">
+    <div data-keep-selection className="rounded-lg border bg-card p-4 text-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Settings</h2>
         <Button variant="ghost" size="sm" onClick={onClose}>

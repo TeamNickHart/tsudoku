@@ -39,6 +39,8 @@ export default {
           error: 'hsl(var(--board-error))',
           note: 'hsl(var(--board-note))',
           'note-stale': 'hsl(var(--board-note-stale))',
+          struck: 'hsl(var(--board-struck))',
+          strike: 'hsl(var(--board-strike))',
           selected: 'hsl(var(--board-selected))',
           peer: 'hsl(var(--board-peer))',
           primary: 'hsl(var(--board-primary))',

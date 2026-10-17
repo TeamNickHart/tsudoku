@@ -1,31 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 /**
- * Drag-to-paint / tap-to-toggle cell selection.
+ * Tap / drag gesture recognition for board cells.
  *
- * The interaction, which is the bit worth getting right:
+ * The hook only tells taps from drags and reports which cells a drag covered.
+ * What a tap or a drag *means* — toggle a cell, switch to note mode, focus a
+ * digit — is the host's call.
  *
- * - **Tap** toggles that one cell in or out of the selection. This is how you
- *   deselect a few cells after painting a line.
- * - **Drag starting on an unselected cell** replaces the selection and paints
- *   as you move — "draw a line across the board".
- * - **Drag starting on an already-selected cell** extends the selection
- *   instead of replacing it, so you can paint a second line without losing
- *   the first.
+ * The rules, which are the bit worth getting right:
  *
- * A tap is a drag of zero distance, so the two cannot be told apart at
- * pointer-down. We resolve it at pointer-up: if the pointer never entered a
- * second cell, it was a tap.
+ * - **A press is a tap until proven otherwise.** It becomes a drag only once
+ *   the pointer has travelled a real distance from where it went down *and*
+ *   is over a different cell. A sloppy tap that wobbles across a cell border
+ *   stays a tap, so it cannot wipe out a selection the player built up.
+ * - **Nothing changes until the drag is certain.** `onDragStart` and the first
+ *   `onPaint` fire together at the moment the threshold is crossed, never at
+ *   pointer-down.
+ * - **A drag always starts a new run, and the run includes the cell it started
+ *   on.** Cells the pointer crossed before the threshold was met, or skipped
+ *   between two pointermove samples on a fast swipe, are filled in by walking
+ *   the path between samples.
  *
- * Uses Pointer Events so mouse, touch and stylus all take the same path.
- *
- * Touch needs different handling from mouse, and getting this wrong is a
- * silent failure on exactly the device people play on. A touch drag gets
- * *implicit pointer capture*: every `pointermove` is delivered to the element
- * where the finger went down, so `pointerenter` never fires on the cells the
- * finger passes over. So the drag is tracked with `pointermove` +
- * `document.elementFromPoint`, which behaves identically for mouse and touch,
- * and `pointerenter` is kept only as a belt-and-braces path for mouse.
+ * Uses Pointer Events so mouse, touch and stylus take the same path. A touch
+ * drag gets *implicit pointer capture*, so `pointerenter` never fires on the
+ * cells a finger passes over; tracking `pointermove` on the window with
+ * `document.elementFromPoint` behaves the same for every pointer type.
  */
 
 /** The cell index under a point, or null when the point is off the grid. */
@@ -37,174 +36,168 @@ function cellAtPoint(x: number, y: number): number | null {
   return raw === undefined ? null : Number(raw);
 }
 
+/**
+ * How far a press must travel before it can become a drag, as a fraction of
+ * the cell's width. Large enough to absorb a finger rolling as it lifts; small
+ * enough that a deliberate drag into the next cell still registers before the
+ * finger is halfway across it.
+ */
+const DRAG_THRESHOLD = 0.4;
+/** Floor for the threshold in px, so tiny cells do not make it twitchy. */
+const MIN_DRAG_PX = 8;
+/** Path sampling step as a fraction of cell width — finer than a cell. */
+const SAMPLE_STEP = 0.25;
+
 interface DragSelectOptions {
-  /** Replace the entire selection. */
-  readonly onReplace: (cells: readonly number[]) => void;
-  /** Toggle one cell in or out. */
-  readonly onToggle: (cell: number) => void;
-  /** The current selection, needed to decide replace-vs-extend at drag start. */
-  readonly selected: readonly number[];
+  /** A press that never became a drag. */
+  readonly onTap: (cell: number) => void;
   /**
-   * When false, dragging does not paint — the gesture degrades to a plain tap
-   * on the cell where the pointer went down. Used for value mode, where a
-   * multi-selection has no meaning.
-   *
-   * Note this is checked lazily, at the moment a drag first leaves its starting
-   * cell, rather than at pointer-down. That lets `onDragBegin` flip the mode
-   * and have painting start on the very same gesture.
+   * The press just became a drag. Fires once, immediately before the first
+   * `onPaint`, so the host can switch mode in the same update.
    */
-  readonly multiSelect: boolean;
-  /**
-   * Called once per drag, when the pointer first leaves the cell it went down
-   * on — the moment a press is definitely a drag and not a tap.
-   *
-   * Returning true means "painting is now allowed", which lets value mode
-   * switch itself to note mode and capture the run the player is drawing. A
-   * plain tap never fires this, so tapping a cell in value mode still just
-   * selects it.
-   */
-  readonly onDragBegin?: () => boolean;
+  readonly onDragStart: () => void;
+  /** Every cell this drag has covered so far, start cell first. */
+  readonly onPaint: (cells: readonly number[]) => void;
 }
 
 interface DragSelectResult {
   /** Spread onto each cell element. */
   readonly cellProps: (index: number) => {
     onPointerDown: (e: React.PointerEvent) => void;
-    onPointerEnter: () => void;
   };
-  /** True while a drag is in progress — useful for suppressing hover styling. */
-  readonly isDragging: boolean;
 }
 
-export function useDragSelect({
-  onReplace,
-  onToggle,
-  selected,
-  multiSelect,
-  onDragBegin,
-}: DragSelectOptions): DragSelectResult {
-  const [isDragging, setIsDragging] = useState(false);
+interface Gesture {
+  readonly pointerId: number;
+  readonly startCell: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly cellSize: number;
+  lastX: number;
+  lastY: number;
+  isDrag: boolean;
+  readonly painted: Set<number>;
+}
 
-  // Refs rather than state: these change many times per drag and must not
-  // trigger a re-render on every pointermove.
-  const startCell = useRef<number | null>(null);
-  const painted = useRef<Set<number>>(new Set());
-  const movedToAnotherCell = useRef(false);
-  // Set once per drag by the first paintCell that leaves the start cell, so
-  // onDragBegin fires exactly once even though pointermove fires constantly.
-  const dragAnnounced = useRef(false);
+export function useDragSelect(options: DragSelectOptions): DragSelectResult {
+  // The window listeners outlive the render that attached them, so they read
+  // the host's callbacks through a ref. Closing over the callbacks directly
+  // was a real bug: a drag that began in value mode switched to note mode, but
+  // the listeners kept calling the value-mode handlers from pointer-down, so
+  // the run collapsed to one cell and the rest of a touch drag was dropped.
+  const latest = useRef(options);
+  latest.current = options;
 
-  const finish = useCallback(() => {
-    const start = startCell.current;
-    if (start === null) return;
-
-    // A drag that never left its starting cell is a tap.
-    if (!movedToAnotherCell.current) {
-      onToggle(start);
-    }
-
-    startCell.current = null;
-    painted.current = new Set();
-    movedToAnotherCell.current = false;
-    dragAnnounced.current = false;
-    setIsDragging(false);
-  }, [onToggle]);
-
-  const paintCell = useCallback(
-    (index: number) => {
-      if (startCell.current === null) return;
-      if (painted.current.has(index)) return;
-
-      // First movement off the starting cell: this is a drag, not a tap.
-      // Give the host a chance to enable painting — value mode uses this to
-      // switch to note mode — and respect its answer for the rest of the drag.
-      let allowed = multiSelect;
-      if (!dragAnnounced.current) {
-        dragAnnounced.current = true;
-        if (!allowed && onDragBegin !== undefined) allowed = onDragBegin();
-      }
-      if (!allowed) return;
-
-      movedToAnotherCell.current = true;
-      painted.current.add(index);
-      onReplace([...painted.current]);
-    },
-    [onReplace, multiSelect, onDragBegin],
-  );
-
-  /**
-   * Window listeners for the drag, attached synchronously at pointer-down.
-   *
-   * These deliberately do NOT live in an effect keyed on `isDragging`: an
-   * effect runs only after React commits the state change, so the first few
-   * pointermove events of a fast drag would land before the listener existed
-   * and be silently dropped. Attaching here means no move is missed.
-   */
+  const gesture = useRef<Gesture | null>(null);
   const detach = useRef<(() => void) | null>(null);
 
-  const attachDragListeners = useCallback(() => {
-    const onMove = (e: PointerEvent): void => {
-      const index = cellAtPoint(e.clientX, e.clientY);
-      if (index !== null) paintCell(index);
-    };
-    const onUp = (): void => {
-      detach.current?.();
-      finish();
-    };
+  /** Add every cell on the straight path between two points. */
+  const paintPath = useCallback((g: Gesture, x0: number, y0: number, x1: number, y1: number) => {
+    const step = Math.max(1, g.cellSize * SAMPLE_STEP);
+    const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+    let changed = false;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const cell = cellAtPoint(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+      if (cell !== null && !g.painted.has(cell)) {
+        g.painted.add(cell);
+        changed = true;
+      }
+    }
+    return changed;
+  }, []);
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+  const onMove = useCallback(
+    (e: PointerEvent) => {
+      const g = gesture.current;
+      if (g === null || e.pointerId !== g.pointerId) return;
+      const { clientX: x, clientY: y } = e;
 
-    detach.current = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-      detach.current = null;
-    };
-  }, [paintCell, finish]);
+      if (!g.isDrag) {
+        const travelled = Math.hypot(x - g.startX, y - g.startY);
+        const threshold = Math.max(MIN_DRAG_PX, g.cellSize * DRAG_THRESHOLD);
+        if (travelled < threshold) return;
+        const here = cellAtPoint(x, y);
+        if (here === null || here === g.startCell) return;
 
-  // Clean up if the component unmounts mid-drag.
+        // Certain now. Walk from where the press began so nothing between
+        // the start cell and here is lost.
+        g.isDrag = true;
+        paintPath(g, g.startX, g.startY, x, y);
+        g.lastX = x;
+        g.lastY = y;
+        latest.current.onDragStart();
+        latest.current.onPaint([...g.painted]);
+        return;
+      }
+
+      const changed = paintPath(g, g.lastX, g.lastY, x, y);
+      g.lastX = x;
+      g.lastY = y;
+      if (changed) latest.current.onPaint([...g.painted]);
+    },
+    [paintPath],
+  );
+
+  const end = useCallback((e: PointerEvent) => {
+    const g = gesture.current;
+    if (g === null || e.pointerId !== g.pointerId) return;
+    detach.current?.();
+    gesture.current = null;
+    // A cancelled press (the browser took the gesture over) is neither a tap
+    // nor a drag; doing nothing is the only safe reading.
+    if (e.type === 'pointerup' && !g.isDrag) latest.current.onTap(g.startCell);
+  }, []);
+
+  // Clean up if the component unmounts mid-gesture.
   useEffect(() => () => detach.current?.(), []);
 
   const onPointerDown = useCallback(
     (index: number, e: React.PointerEvent) => {
-      // Let the browser keep sending events to this element mid-drag, and stop
-      // touch drags from scrolling the page.
+      // One gesture at a time: ignore a second finger and non-primary buttons.
+      if (!e.isPrimary || e.button !== 0) return;
+      // A leftover gesture means its pointerup was lost (a mouse released
+      // outside the window). Drop it rather than let it block every press.
+      detach.current?.();
+      // Let pointermove reach whatever is under the finger, and stop touch
+      // drags from scrolling the page.
       e.currentTarget.releasePointerCapture?.(e.pointerId);
       e.preventDefault();
 
-      startCell.current = index;
-      movedToAnotherCell.current = false;
-      dragAnnounced.current = false;
+      gesture.current = {
+        pointerId: e.pointerId,
+        startCell: index,
+        startX: e.clientX,
+        startY: e.clientY,
+        cellSize: e.currentTarget.getBoundingClientRect().width,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        isDrag: false,
+        painted: new Set([index]),
+      };
 
-      // Starting on a selected cell extends; starting elsewhere replaces.
-      const extending = multiSelect && selected.includes(index);
-      painted.current = new Set(extending ? selected : []);
-      painted.current.add(index);
-
-      attachDragListeners();
-      setIsDragging(true);
+      // Attached synchronously, not in an effect keyed on state: an effect
+      // runs only after React commits, so the opening moves of a fast drag
+      // would land before the listener existed and be silently dropped.
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+      detach.current = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        detach.current = null;
+      };
     },
-    [selected, attachDragListeners, multiSelect],
-  );
-
-  // Kept for mouse, where it fires naturally. Touch relies on the pointermove
-  // handler above; paintCell dedupes so both firing is harmless.
-  const onPointerEnter = useCallback(
-    (index: number) => {
-      paintCell(index);
-    },
-    [paintCell],
+    [onMove, end],
   );
 
   const cellProps = useCallback(
     (index: number) => ({
       onPointerDown: (e: React.PointerEvent) => onPointerDown(index, e),
-      onPointerEnter: () => onPointerEnter(index),
     }),
-    [onPointerDown, onPointerEnter],
+    [onPointerDown],
   );
 
-  return { cellProps, isDragging };
+  return { cellProps };
 }

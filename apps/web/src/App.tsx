@@ -53,23 +53,6 @@ export function App(): JSX.Element {
 
   const band = bandForPuzzle(puzzle);
 
-  /**
-   * A drag that starts in value mode becomes a note selection.
-   *
-   * The gesture declares the intent: dragging across cells only makes sense
-   * when you are about to annotate several of them, so there is no reason to
-   * make the player press "Note" first and then drag. A tap still just selects
-   * a cell, so single-cell value entry is untouched.
-   *
-   * Returning true tells the drag hook painting is now allowed, so the run
-   * being drawn is captured on this same gesture rather than the next one.
-   */
-  const handleDragBegin = useCallback((): boolean => {
-    if (mode !== 'value') return true;
-    setMode('note-included');
-    return true;
-  }, [mode, setMode]);
-
   const newPuzzle = useCallback(() => {
     const next = randomPuzzleInBand(settings.bandId, puzzle.puzzle);
     setPuzzle(next);
@@ -80,20 +63,6 @@ export function App(): JSX.Element {
   const activateCell = useCallback(
     (index: number, additive: boolean) => {
       game.dispatch({ type: 'select', cell: index, additive, mode });
-    },
-    [game, mode],
-  );
-
-  const replaceSelection = useCallback(
-    (cells: readonly number[]) => {
-      game.dispatch({ type: 'setSelection', cells, mode });
-    },
-    [game, mode],
-  );
-
-  const toggleSelection = useCallback(
-    (cell: number) => {
-      game.dispatch({ type: 'select', cell, additive: true, mode });
     },
     [game, mode],
   );
@@ -115,11 +84,98 @@ export function App(): JSX.Element {
 
   const enterDigit = useCallback(
     (digit: number) => {
-      setFocusDigit((current) => (current === digit ? null : digit));
+      // With a selection, the press is entry, and the digit being entered is
+      // the one worth seeing — so it is set, never toggled. Toggling broke the
+      // core loop: focus 3, select cells, strike 3, and the highlight vanished
+      // at the exact moment the player wanted it back. With nothing selected
+      // the press is purely "show me this digit", and pressing it again is
+      // how that view is dismissed.
+      const entering = state.selected.length > 0;
+      setFocusDigit((current) => (entering || current !== digit ? digit : null));
       game.dispatch({ type: 'digit', digit, mode, autoNotes: settings.autoNotes });
     },
-    [game, mode, settings.autoNotes],
+    [game, mode, settings.autoNotes, state.selected.length],
   );
+
+  /**
+   * A drag declares a multi-selection.
+   *
+   * Note and strike stay as they are. Value mode switches to note mode: a run
+   * of cells only makes sense when you are about to annotate them, so there is
+   * no reason to make the player press "Note" first. Either way the drag
+   * starts a fresh selection — it never extends the old one.
+   */
+  const handleDragStart = useCallback(() => {
+    if (mode === 'value') setMode('note-included');
+  }, [mode, setMode]);
+
+  const paintSelection = useCallback(
+    (cells: readonly number[]) => {
+      game.dispatch({ type: 'setSelection', cells });
+    },
+    [game],
+  );
+
+  /**
+   * A tap on a cell.
+   *
+   * A filled cell is a question about its digit, not a target: it focuses that
+   * digit, exactly like pressing it on the pad, and clears the selection so
+   * the board shows where the digit can still go. Focus is set, not toggled —
+   * tapping one 5 after another while scanning should never switch the view
+   * off.
+   *
+   * An empty cell toggles in or out of the selection in note and strike modes.
+   * In value mode it becomes the single selected cell and the digit focus is
+   * cleared.
+   */
+  const tapCell = useCallback(
+    (cell: number) => {
+      const value = cells[cell]?.value ?? null;
+      if (value !== null) {
+        setFocusDigit(value);
+        game.dispatch({ type: 'clearSelection' });
+        return;
+      }
+      // Selecting a cell to fill in value mode starts a fresh look at the
+      // board: the old digit's highlights would only compete with the
+      // selected cell's peers.
+      if (mode === 'value') setFocusDigit(null);
+      game.dispatch({ type: 'select', cell, additive: true, mode });
+    },
+    [cells, game, mode],
+  );
+
+  /**
+   * Back to a clean slate: no selection, no focused digit, no hint, value mode.
+   *
+   * Entering notes and strikes never clears the selection on its own — the
+   * player builds a selection and may work several digits across it. Clearing
+   * is always an explicit act: tapping off the board (or Escape).
+   */
+  const { dispatch, dismissHint } = game;
+  const resetView = useCallback(() => {
+    dispatch({ type: 'clearSelection' });
+    setFocusDigit(null);
+    setMode('value');
+    dismissHint();
+  }, [dispatch, setMode, dismissHint]);
+
+  // A tap anywhere that is not the board or a control resets the view.
+  // Controls are matched structurally rather than listed, so a new button
+  // cannot forget to opt out; panels with non-button content opt out with
+  // data-keep-selection.
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent): void => {
+      if (!(e.target instanceof Element)) return;
+      const keep = e.target.closest(
+        'button, a, input, select, textarea, label, [role="grid"], [data-keep-selection]',
+      );
+      if (keep === null) resetView();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [resetView]);
 
   const erase = useCallback(() => {
     game.dispatch({ type: 'erase' });
@@ -153,7 +209,7 @@ export function App(): JSX.Element {
       if (e.key === 'v') setMode('value');
       if (e.key === 'n') setMode('note-included');
       if (e.key === 'x') setMode('note-excluded');
-      if (e.key === 'Escape') game.dispatch({ type: 'clearSelection' });
+      if (e.key === 'Escape') resetView();
 
       const focus = state.selected.length > 0 ? state.selected[state.selected.length - 1]! : 40;
       const move = (delta: number): void => {
@@ -169,7 +225,7 @@ export function App(): JSX.Element {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [game, enterDigit, erase, setMode, state.selected, mode]);
+  }, [game, enterDigit, erase, setMode, state.selected, mode, resetView]);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-6">
@@ -186,12 +242,11 @@ export function App(): JSX.Element {
       <Board
         cells={cells}
         selected={state.selected}
-        onReplaceSelection={replaceSelection}
-        onToggleSelection={toggleSelection}
+        onTap={tapCell}
+        onDragStart={handleDragStart}
+        onPaint={paintSelection}
         onActivate={activateCell}
-        multiSelect={mode !== 'value'}
         focusDigit={focusDigit}
-        onDragBegin={handleDragBegin}
       />
 
       <div className="flex items-center justify-between text-sm">
@@ -295,7 +350,10 @@ export function App(): JSX.Element {
       )}
 
       {hint && (
-        <div className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm">
+        <div
+          data-keep-selection
+          className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm"
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium">{hint.technique}</p>
@@ -309,9 +367,10 @@ export function App(): JSX.Element {
       )}
 
       <p className="mt-auto text-xs text-muted-foreground">
-        Tap a cell to enter a value. Drag across cells to select a run for notes. Note and strike
-        share a selection; switching to value clears it. <kbd>V</kbd> value · <kbd>N</kbd> note ·{' '}
-        <kbd>X</kbd> strike · <kbd>⌘Z</kbd> undo
+        Tap a cell to enter a value; tap a filled cell to see where its digit can go. Drag across
+        cells to select a run for notes — tap a cell to add or remove it. Tap off the board to clear
+        everything. <kbd>V</kbd> value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>Esc</kbd>{' '}
+        clear · <kbd>⌘Z</kbd> undo
       </p>
     </div>
   );

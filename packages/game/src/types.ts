@@ -240,6 +240,23 @@ export interface CellView {
   readonly staleNotes: readonly number[];
   /** Every digit noted as possible, from either source. Sorted. */
   readonly includedNotes: readonly number[];
+  /**
+   * Included notes the player has not also struck. Sorted.
+   *
+   * This is what digit focus scans: a strike is the player saying "not here",
+   * so a struck digit must not light the cell up as somewhere it could go —
+   * even when an auto or manual note for it is still underneath.
+   */
+  readonly liveNotes: readonly number[];
+  /**
+   * Digits the player both noted and struck — a contradiction they wrote
+   * down, shown rather than resolved. Sorted.
+   *
+   * Only `manual` notes count. The player's marks always override the app's,
+   * so striking an *auto* note is an ordinary move: the auto note stays in
+   * the data (so un-striking brings it back) but displays as a plain strike.
+   */
+  readonly conflictNotes: readonly number[];
   /** True when this cell is in the current selection. */
   readonly isSelected: boolean;
   /** Roles decorating the cell as a whole. */
