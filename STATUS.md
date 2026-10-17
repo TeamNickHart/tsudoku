@@ -889,7 +889,7 @@ Newest first. Keep entries short — what changed and why it mattered.
 - **Strikes override auto notes in the display.** A struck digit no longer
   lights up under digit focus, and striking an auto note shows a plain strike
   rather than a contradiction (`CellView.liveNotes`, `conflictNotes`).
-  Strikes are drawn as a pale gray digit under a thin red line
+  Strikes are drawn as a pale gray digit under a 2px red line
   (`--board-struck`, `--board-strike`) so they never read as live notes.
 - Found, not fixed: nothing ever applies the `.dark` class, so the dark board
   tokens are defined but unreachable — the app is light-only today.

@@ -225,7 +225,10 @@ function NoteGrid({
               isAuto && 'opacity-80',
               // A strike is a pale gray digit under a red line: different
               // in both color and mark from a live note, not just dimmer.
-              excluded && 'line-through decoration-board-strike decoration-[1.5px]',
+              // 2px, not thinner: the line is what has to read at a glance.
+              // The digit can be inferred from its fixed slot in the 3x3
+              // note grid, so it is fine for the line to cover it.
+              excluded && 'line-through decoration-board-strike decoration-2',
               excluded && !isConflict && 'text-board-struck',
               isStale && 'text-board-note-stale',
               isConflict && 'text-board-error underline decoration-wavy',
