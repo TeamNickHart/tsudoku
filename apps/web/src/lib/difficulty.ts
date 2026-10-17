@@ -72,21 +72,39 @@ export function puzzlesInBand(bandId: string): readonly CorpusPuzzle[] {
 }
 
 /**
- * A random puzzle from a band, avoiding `exclude` when possible.
+ * A random puzzle from a band, preferring ones the player has not solved and
+ * avoiding `exclude` when possible.
  *
  * Excluding the current puzzle matters more than it sounds: without it, "new
  * puzzle" lands on the same board often enough to look broken, since a band can
  * hold as few as a dozen.
+ *
+ * Once every puzzle in the band is solved, repeats are allowed again rather
+ * than leaving "New puzzle" with nothing to offer. The settings panel shows
+ * the solved count, so running out is visible rather than silent.
  */
-export function randomPuzzleInBand(bandId: string, exclude?: string): CorpusPuzzle {
+export function randomPuzzleInBand(
+  bandId: string,
+  exclude?: string,
+  solved: ReadonlySet<string> = new Set(),
+): CorpusPuzzle {
   const pool = puzzlesInBand(bandId);
   // Should not happen — every band maps to techniques present in the corpus —
   // but returning something valid beats throwing inside a click handler.
   if (pool.length === 0) return PUZZLES[0]!;
 
-  const choices = pool.length > 1 ? pool.filter((p) => p.puzzle !== exclude) : pool;
+  // Excluding comes first: "New puzzle" on the band's last unsolved board
+  // must still move on, not hand back the same board and reset its progress.
+  const others = pool.length > 1 ? pool.filter((p) => p.puzzle !== exclude) : pool;
+  const unsolved = others.filter((p) => !solved.has(p.puzzle));
+  const choices = unsolved.length > 0 ? unsolved : others;
   const picked = choices[Math.floor(Math.random() * choices.length)];
   return picked ?? pool[0]!;
+}
+
+/** How many of a band's puzzles appear in `solved`. */
+export function solvedInBand(bandId: string, solved: ReadonlySet<string>): number {
+  return puzzlesInBand(bandId).filter((p) => solved.has(p.puzzle)).length;
 }
 
 /** The band a puzzle belongs to, or null if none claims it. */

@@ -1,6 +1,6 @@
 import { TECHNIQUE_DIFFICULTY } from '@tsudoku/core';
 import { Button } from '@/components/ui/button';
-import { DIFFICULTY_BANDS } from '@/lib/difficulty';
+import { DIFFICULTY_BANDS, puzzlesInBand, solvedInBand } from '@/lib/difficulty';
 import type { Settings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
@@ -14,10 +14,14 @@ import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
   readonly settings: Settings;
+  /** Puzzles solved so far, for the per-band progress count. */
+  readonly solvedPuzzles: ReadonlySet<string>;
   readonly onSetBand: (bandId: string) => void;
   readonly onToggleAutoSolve: (technique: string) => void;
   readonly onSetAutoNotes: (enabled: boolean) => void;
   readonly onClose: () => void;
+  /** Debug: wipe everything the app has saved in this browser. */
+  readonly onClearSavedData: () => void;
 }
 
 /**
@@ -38,10 +42,12 @@ const TECHNIQUE_LABELS: Record<string, string> = {
 
 export function SettingsPanel({
   settings,
+  solvedPuzzles,
   onSetBand,
   onToggleAutoSolve,
   onSetAutoNotes,
   onClose,
+  onClearSavedData,
 }: SettingsPanelProps): JSX.Element {
   return (
     <div data-keep-selection className="rounded-lg border bg-card p-4 text-sm">
@@ -57,7 +63,8 @@ export function SettingsPanel({
           Difficulty
         </legend>
         <p className="mt-1 text-xs text-muted-foreground">
-          New puzzles are picked at random from the band you choose.
+          New puzzles are picked at random from the band you choose, skipping ones you have solved
+          until the band runs out.
         </p>
         <div className="mt-2 flex flex-col gap-1">
           {DIFFICULTY_BANDS.map((band) => {
@@ -76,7 +83,12 @@ export function SettingsPanel({
                     : 'border-transparent hover:bg-muted',
                 )}
               >
-                <span className="font-medium">{band.label}</span>
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium">{band.label}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {solvedInBand(band.id, solvedPuzzles)}/{puzzlesInBand(band.id).length} solved
+                  </span>
+                </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{band.blurb}</span>
               </button>
             );
@@ -131,6 +143,18 @@ export function SettingsPanel({
           Not wired up yet — this records the preference so the setting is here when the behaviour
           lands.
         </p>
+      </fieldset>
+
+      <fieldset className="mt-4 border-t pt-4">
+        <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Debug
+        </legend>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Forget your settings and solved puzzles in this browser, then reload.
+        </p>
+        <Button variant="outline" size="sm" className="mt-2" onClick={onClearSavedData}>
+          Clear saved data
+        </Button>
       </fieldset>
     </div>
   );

@@ -13,7 +13,15 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..', '..');
-const PER_TECHNIQUE = 12;
+const PER_BUCKET = 12;
+
+/**
+ * SE 1.0 (full house) puzzles are left out. They exist to validate the engine
+ * at that rating and are constructed with every hole alone in its row, column
+ * and box, so they start with 72–80 of 81 cells filled. As a game that is a
+ * board that looks broken, not a gentle puzzle. Gentle play is SE 1.2+.
+ */
+const MIN_RATING = 1.2;
 
 // Both phases: the app offers difficulty settings, and phase1 alone tops out
 // at SE 2.5 — every technique worth teaching lives in phase2.
@@ -23,19 +31,22 @@ const lines = ['phase1', 'phase2'].flatMap((phase) =>
     .split('\n'),
 );
 
-const byTechnique = new Map();
+// Bucketed by technique AND rating. Bucketing by technique alone took the
+// first 12 HiddenSingle lines in file order, which were all SE 1.0 — so the
+// 1.2 and 1.5 puzzles never reached the app at all.
+const buckets = new Map();
 for (const line of lines) {
   const entry = JSON.parse(line);
-  const list = byTechnique.get(entry.se_technique) ?? [];
-  if (list.length < PER_TECHNIQUE) {
+  if (entry.se_rating < MIN_RATING) continue;
+  const key = `${entry.se_technique}@${entry.se_rating}`;
+  const list = buckets.get(key) ?? [];
+  if (list.length < PER_BUCKET) {
     list.push(entry);
-    byTechnique.set(entry.se_technique, list);
+    buckets.set(key, list);
   }
 }
 
-const selected = [...byTechnique.entries()]
-  .sort(([, a], [, b]) => a[0].se_rating - b[0].se_rating)
-  .flatMap(([, entries]) => entries);
+const selected = [...buckets.values()].sort((a, b) => a[0].se_rating - b[0].se_rating).flat();
 
 const body = selected
   .map(
@@ -46,9 +57,10 @@ const body = selected
 const out = `// GENERATED — do not edit by hand.
 // Regenerate: node apps/web/scripts/build-corpus-slice.mjs
 //
-// A technique-balanced slice of benchmarks/corpus/phase1.jsonl. Every puzzle
-// here is SE-verified, so the rating and hardest-technique labels are ground
-// truth, not estimates.
+// A technique-balanced slice of benchmarks/corpus/phase1.jsonl and
+// phase2.jsonl, ${PER_BUCKET} per technique and rating, SE ${MIN_RATING}+. Every
+// puzzle here is SE-verified, so the rating and hardest-technique labels are
+// ground truth, not estimates.
 
 export interface CorpusPuzzle {
   /** 81 chars, digits and '0' for blanks. */
@@ -75,7 +87,7 @@ export const BY_TECHNIQUE: ReadonlyMap<string, readonly CorpusPuzzle[]> = new Ma
 `;
 
 writeFileSync(join(here, '..', 'src', 'data', 'corpus.ts'), out);
-console.log(`Wrote ${selected.length} puzzles across ${byTechnique.size} techniques.`);
-for (const [technique, entries] of byTechnique) {
-  console.log(`  ${technique.padEnd(22)} ${entries.length}`);
+console.log(`Wrote ${selected.length} puzzles across ${buckets.size} technique/rating buckets.`);
+for (const [key, entries] of buckets) {
+  console.log(`  ${key.padEnd(26)} ${entries.length}`);
 }
