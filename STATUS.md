@@ -898,7 +898,10 @@ Newest first. Keep entries short — what changed and why it mattered.
 - **Solved history** (`lib/history.ts`, localStorage `tsudoku.history.v1`).
   "New puzzle" prefers boards not yet solved, falls back to repeats once a
   band is exhausted (labelled "Solved before"), and Settings shows
-  solved/total per band. The difficulty band was already sticky.
+  solved/total per band. The difficulty band was already sticky. A Debug
+  section in Settings clears every `tsudoku.*` key and reloads. Note each
+  Vercel preview URL is its own origin, so saved data does not carry between
+  previews and production.
 - Found, not fixed: nothing ever applies the `.dark` class, so the dark board
   tokens are defined but unreachable — the app is light-only today.
 

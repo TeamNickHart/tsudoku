@@ -20,6 +20,8 @@ interface SettingsPanelProps {
   readonly onToggleAutoSolve: (technique: string) => void;
   readonly onSetAutoNotes: (enabled: boolean) => void;
   readonly onClose: () => void;
+  /** Debug: wipe everything the app has saved in this browser. */
+  readonly onClearSavedData: () => void;
 }
 
 /**
@@ -45,6 +47,7 @@ export function SettingsPanel({
   onToggleAutoSolve,
   onSetAutoNotes,
   onClose,
+  onClearSavedData,
 }: SettingsPanelProps): JSX.Element {
   return (
     <div data-keep-selection className="rounded-lg border bg-card p-4 text-sm">
@@ -140,6 +143,18 @@ export function SettingsPanel({
           Not wired up yet — this records the preference so the setting is here when the behaviour
           lands.
         </p>
+      </fieldset>
+
+      <fieldset className="mt-4 border-t pt-4">
+        <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Debug
+        </legend>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Forget your settings and solved puzzles in this browser, then reload.
+        </p>
+        <Button variant="outline" size="sm" className="mt-2" onClick={onClearSavedData}>
+          Clear saved data
+        </Button>
       </fieldset>
     </div>
   );

@@ -9,6 +9,7 @@ import type { InputMode } from '@/lib/useGame';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { bandForPuzzle, randomPuzzleInBand } from '@/lib/difficulty';
 import { useHistory } from '@/lib/history';
+import { clearSavedData } from '@/lib/storage';
 import { useSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
@@ -365,6 +366,15 @@ export function App(): JSX.Element {
           onToggleAutoSolve={toggleAutoSolve}
           onSetAutoNotes={setAutoNotes}
           onClose={() => setShowSettings(false)}
+          onClearSavedData={() => {
+            // Confirmed because it is one tap from erasing the solved
+            // history, which cannot be rebuilt.
+            if (!window.confirm('Clear your settings and solved puzzles from this browser?')) {
+              return;
+            }
+            clearSavedData();
+            window.location.reload();
+          }}
         />
       )}
 
