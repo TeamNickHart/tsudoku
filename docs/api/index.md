@@ -1,5 +1,5 @@
 # API Reference
 
 ::: warning NOT YET AVAILABLE
-API documentation will be auto-generated from TypeDoc once Phase 1 types and implementations are complete. No public API is available yet.
+Generated API documentation (TypeDoc) is planned but not set up yet. The public API exists and works -- see the [Quick Start](/guide/quick-start) and the exports of `packages/core/src/index.ts`.
 :::

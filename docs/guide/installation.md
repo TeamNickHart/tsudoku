@@ -21,7 +21,7 @@ pnpm add @tsudoku/core
 To work on TSudoku locally:
 
 ```bash
-git clone https://github.com/tsudoku/tsudoku.git
+git clone https://github.com/TeamNickHart/tsudoku.git
 cd tsudoku
 pnpm install
 pnpm build
