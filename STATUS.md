@@ -641,7 +641,28 @@ Shipped across #39–#44: drag to select a run (value mode switches to note),
 tap to toggle, strike mode drawn as a pale digit under a red line, auto-notes
 that clear themselves from peers, digit focus that highlights where a number
 can still go, notes refused where a peer already holds the digit, and a tap
-off the board to reset. The rules are listed in the 2026-10-17 progress entry.
+off the board to reset. The selection rules are listed in the 2026-10-17
+progress entry.
+
+**The mark rules** (2026-10-20; the code's statement of them is the doc
+comment on `CellNotes`):
+
+| Mark    | Mode    | Meaning                                   | Look                     |
+| ------- | ------- | ----------------------------------------- | ------------------------ |
+| Note    | Note    | Still possible — the canonical candidates | Gray; auto notes lighter |
+| Strike  | Strike  | Ruled out                                 | Pale digit, red line     |
+| Scratch | Scratch | Working marks; never touches candidates   | Bold blue                |
+
+- Note and strike are one layer: a digit is noted, struck, or neither.
+  Switching type replaces the mark; repeating the same type clears it.
+- One press is one decision for the whole selection: if any cell that can
+  take the mark lacks it, all get it; otherwise all lose it.
+- Placing a value removes it from every peer's notes, hand-written or auto.
+  Strikes and scratch in peers stay.
+- Auto-notes re-adds a digit the player un-noted, never one they struck.
+  "Keep notes filled" fills when a game starts, on reset, and when switched
+  on — never after a placement.
+- Every player action is one undo step, however many cells it touches.
 
 ### 2.6 CLI, as it becomes useful — **not started** (stub)
 
@@ -836,6 +857,17 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-10-20
+
+- **Notes stopped getting mixed up and reverted.** Three causes, all fixed: a
+  press on a selection toggled each cell separately (so one press added to some
+  cells and removed from others); "Keep notes filled" refilled the board after
+  every placement, resurrecting removed notes; and every per-cell change was
+  its own undo step, so undoing one placement took ~50 presses. History is now
+  one entry per player action.
+- **Scratch marks** — a third, independent layer for trying an idea out,
+  drawn bold blue, untouched by auto-notes. Rules in 2.5.
 
 ### 2026-10-17 (#43, #44)
 
