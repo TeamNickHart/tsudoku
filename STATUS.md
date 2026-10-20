@@ -4,31 +4,29 @@
 > and what's next. CLAUDE.md holds durable conventions; this file holds the
 > moving parts. Update it as things land.
 
-**Last updated:** 2026-09-21
+**Last updated:** 2026-10-18
 
 ---
 
 ## Current Focus
 
-**Stage 1 is done.** The app is playable and deployed: enter values, take
-notes, undo, ask for a hint and get the engine's real technique explanation.
+**The engine is done for the band this app teaches.** Phases 1 and 2 are
+ported line by line from SudokuExplainer and agree with it on **1858/1858**
+corpus puzzles (SE 1.2–4.4). The generator and a targeted harvester keep the
+corpus filled; every rating has 100+ puzzles except Claiming (25) and the
+SE 1.0 full-house construction (25).
 
-**Stage 2.1 and 2.2 are merged.** `applyHint` applies eliminations; Pointing
-(2.6) and Claiming (2.8) are ported from `Locking.java`; auto-notes fill from
-the engine's candidates and are cleared from peers when a value is placed.
-
-**Stage 2.3 is done.** The generator is ported, and the harvester (with a
-local pre-filter, a corpus lock, and crash-safe incremental flushing) has
-filled `phase2.jsonl` to **836 SE-rated puzzles**.
-
-**Stage 2.4 is done — all of Phase 2 is ported.** Locking, NakedSet, HiddenSet,
-Fisherman and XYWing cover SE 2.6-4.4; all sixteen producers are registered in
-`DEFAULT_PRODUCERS`. Parity is **1443/1443 (100.0%)**.
+**The game is playable and pleasant.** Values, notes and strikes; drag to
+select a run; digit focus to scan for a number; auto-notes; undo/redo; hints
+that name the real technique; difficulty bands; a solved history so puzzles do
+not repeat. Deployed behind Vercel Authentication.
 
 **Next up: the tutor layer (2.4t) — the reason the project exists.** The app
 can name a technique and place its digit; it cannot yet show _why_. The
-machinery is in place (`hintDecorations()` emits semantic roles, the UI renders
-them), so what is missing is _sequencing_: a lesson as an ordered list of steps.
+lesson model and a verified Hidden Single explainer exist in `@tsudoku/game`,
+but **no UI uses them yet**, and every other technique still falls back to a
+one-line summary. Turning that into something a player steps through is the
+next real piece of work.
 
 **Open questions, deliberately unresolved:**
 
@@ -36,14 +34,14 @@ them), so what is missing is _sequencing_: a lesson as an ordered list of steps.
   The real decision is whether this project wants a server at all — that
   unlocks cloud saves, leaderboards and server-side chain techniques, and it
   also means hosting, cost and an attack surface the current static SPA does
-  not have.
-- **Auto-solving "obvious" techniques.** Wanted eventually, behind a toggle:
-  after a placement, re-derive candidates and fill any cell left with a single
-  candidate. Deferred because the scope decision is not obvious — measured, a
-  single placement cascades **~35 naked singles on HiddenSingle puzzles** (i.e.
-  it solves the board) but only **~4 on DirectHiddenPair puzzles**. So the same
-  feature is "a convenience" or "the app played your game" depending on the
-  puzzle. Worth deciding what cascade depth is wanted before building.
+  not have. (Solved history is per-browser localStorage for now.)
+- **Auto-solving "obvious" techniques.** The per-technique preference exists
+  in Settings and is saved, but **does nothing yet**. Deferred because the
+  scope decision is not obvious — measured, a single placement cascades **~35
+  naked singles on HiddenSingle puzzles** (i.e. it solves the board) but only
+  **~4 on DirectHiddenPair puzzles**. So the same feature is "a convenience" or
+  "the app played your game" depending on the puzzle. Worth deciding what
+  cascade depth is wanted before building.
 - ~~**Whether a filled cell should lock** once entered.~~ **Decided: it locks
   fully.** A placed digit cannot be overwritten or erased; undo is the only way
   back, and it rewinds the moves made since. `CellLock` gained a `placed`
@@ -70,51 +68,61 @@ domain `play.tsudoku.dev` deferred until tsudoku.dev moves to Cloudflare.
 
 ## Where We Actually Are
 
-Phase 1 **and Phase 2** are complete and merged, at **1443/1443 (100%)
-agreement with SudokuExplainer**. The engine correctly identifies and rates
-every technique in the SE 1.0–4.4 band.
+Phase 1 **and Phase 2** are complete and merged, at **1858/1858 (100%)
+agreement with SudokuExplainer** (638 Phase 1 + 1220 Phase 2 puzzles). The
+engine correctly identifies and rates every technique in the SE 1.0–4.4 band.
 
 > **Parity is measured against SE commit `b1f9ed4` (2025-01-22)** — the pinned
 > reference in `tools/se-reference/PINNED_COMMIT`. Run `pnpm se:check` to see
 > whether upstream has moved. SE is effectively dormant (21 commits since 2006;
 > none touching `solver/rules` since January 2023), so this should stay stable.
 
-| Package                 | State       | Notes                                                  |
-| ----------------------- | ----------- | ------------------------------------------------------ |
-| `@tsudoku/core`         | **Working** | Phase 1 complete, 100% SE parity (~1250 lines)         |
-| `@tsudoku/game`         | **Working** | State, moves, notes, history, decorations (~720 lines) |
-| `@tsudoku/solver`       | **Working** | Brute force, uniqueness, solution strings (~310 lines) |
-| `apps/web`              | **Working** | Playable, deployed (~820 lines)                        |
-| `@tsudoku/generator`    | **Working** | Generator + Symmetry + ConstructEasy (~470 lines)      |
-| `@tsudoku/cli`          | Stub        | same; `commander` already a declared dependency        |
-| `@tsudoku/react-native` | Stub        | same; intentionally deferred until web proves out      |
-| `docs/` (VitePress)     | Working     | Deploys to tsudoku.dev via Vercel                      |
-| `benchmarks/`           | Working     | SE parity runner; 607 phase1 + 836 phase2 puzzles      |
+| Package                 | State       | Notes                                                         |
+| ----------------------- | ----------- | ------------------------------------------------------------- |
+| `@tsudoku/core`         | **Working** | Phases 1–2 complete, 100% SE parity (~2,100 lines)            |
+| `@tsudoku/game`         | **Working** | State, moves, notes, history, decorations, tutor (~1,300)     |
+| `@tsudoku/solver`       | **Working** | Brute force, uniqueness, solution strings (~340 lines)        |
+| `@tsudoku/generator`    | **Working** | Generator + Symmetry + ConstructEasy (~490 lines)             |
+| `apps/web`              | **Working** | Playable, deployed (~1,900 lines); first unit tests           |
+| `@tsudoku/cli`          | Stub        | 3-line placeholder; `commander` already a declared dependency |
+| `@tsudoku/react-native` | Stub        | Intentionally deferred until web proves out                   |
+| `docs/` (VitePress)     | Working     | Deploys to tsudoku.dev via Vercel                             |
+| `benchmarks/`           | Working     | SE parity runner; 638 phase1 + 1220 phase2 puzzles            |
 
 ### Implemented techniques
 
 All sixteen producers are registered in `DEFAULT_PRODUCERS` in SE difficulty
-order. Corpus counts and parity, measured:
+order. Corpus counts and parity, measured 2026-10-18 with `pnpm benchmark`:
 
 | Technique            | SE rating | Corpus | Validated   |
 | -------------------- | --------- | ------ | ----------- |
-| `NakedSingle` (last) | 1.0       | 25     | 100%        |
+| Full house           | 1.0       | 25     | 100%        |
 | `HiddenSingle`       | 1.2 / 1.5 | 204    | 100%        |
-| `DirectPointing`     | 1.7       | 100    | 100%        |
+| `DirectPointing`     | 1.7       | 106    | 100%        |
 | `DirectClaiming`     | 1.9       | n/a    | Unreachable |
 | `DirectHiddenSet(2)` | 2.0       | 103    | 100%        |
 | `NakedSingle`        | 2.3       | 100    | 100%        |
 | `DirectHiddenSet(3)` | 2.5       | 100    | 100%        |
-| `Locking(true)`      | 2.6       | **33** | 100%        |
-| `Locking(false)`     | 2.8       | **11** | 100%        |
-| `NakedSet(2)`        | 3.0       | 121    | 100%        |
-| `Fisherman(2)`       | 3.2       | 106    | 100%        |
-| `HiddenSet(2)`       | 3.4       | 112    | 100%        |
-| `NakedSet(3)`        | 3.6       | 104    | 100%        |
+| `Locking(true)`      | 2.6       | 305    | 100%        |
+| `Locking(false)`     | 2.8       | **25** | 100%        |
+| `NakedSet(2)`        | 3.0       | 131    | 100%        |
+| `Fisherman(2)`       | 3.2       | 110    | 100%        |
+| `HiddenSet(2)`       | 3.4       | 123    | 100%        |
+| `NakedSet(3)`        | 3.6       | 108    | 100%        |
 | `Fisherman(3)`       | 3.8       | 100    | 100%        |
 | `HiddenSet(3)`       | 4.0       | 102    | 100%        |
-| `XYWing(false)`      | 4.2       | **37** | 100%        |
-| `XYWing(true)`       | 4.4       | 110    | 100%        |
+| `XYWing(false)`      | 4.2       | 100    | 100%        |
+| `XYWing(true)`       | 4.4       | 116    | 100%        |
+
+The SE 1.0 puzzles carry SE's `HiddenSingle` label in the corpus; they are the
+full-house construction described below. They stay in the benchmark but are
+kept out of the app, since they start with 72–80 givens.
+
+**Size-4 sets and fish exist but are not registered.** `NakedSet`, `HiddenSet`
+and `Fisherman` are parameterised by size, so `NakedQuad` (5.0), `Jellyfish`
+(5.2) and `HiddenQuad` (5.4) are in the `Technique` union and the code, but not
+in `DEFAULT_PRODUCERS`, and `phase3.jsonl` is empty. The benchmark lists them
+as unvalidated. They are the cheapest Phase 3 step whenever it comes.
 
 **1.0 is fixed; 1.9 is a different problem.** Both were empty, and both were
 described here as "rare". Measurement says otherwise — they are _absent_, for
@@ -166,10 +174,9 @@ technique **0** times.
 
 **Consequence.** `DirectClaiming` is correctly implemented and fires correctly;
 it simply never determines a puzzle's rating, so no SE-rated corpus can ever
-contain a 1.9 puzzle. The benchmark's "PASS on an empty corpus" for it is not a
-gap to close — it is the correct and permanent state. The runner should say so
-explicitly rather than leaving a reader to assume the corpus is merely
-unfinished.
+contain a 1.9 puzzle. That is the correct and permanent state, and the runner
+now says so explicitly (`UNREACHABLE_TECHNIQUES`) rather than leaving a reader
+to assume the corpus is merely unfinished.
 
 ---
 
@@ -232,55 +239,28 @@ Two decisions worth making early, because they're expensive to retrofit:
 Stage 1 proved the game is playable. Stage 2 is about the thing that makes this
 project worth doing: **the app should teach a technique, not just apply it.**
 
-Right now the app can _name_ a technique and place its digit. It cannot yet
-show you _why_ — because "why" almost always means "here is a candidate that
-can be eliminated, and here is the reasoning", and the engine cannot represent
-an elimination end to end.
+The engine side of this is done: eliminations apply end to end and all of
+Phase 2 is ported. What remains is the teaching itself — 2.4t.
 
-### 2.1 Fix `applyHint` for eliminations — **the gate**
+### 2.1 `applyHint` applies eliminations — **done**
 
-`packages/core/src/models/GridImpl.ts:159`. The elimination branch computes
-`newCandidates`, throws it away with `void newCandidates`, and rebuilds from
-cell values only.
+The elimination branch used to compute the new candidates and throw them away,
+which blocked every Phase 2 technique. `Grid` now carries explicit candidates,
+since an elimination is precisely a candidate that logic removed but
+arithmetic would put back.
 
-Harmless so far — every Phase 1 technique emits a `DirectHint`. But **every
-Phase 2 technique is elimination-based**, so nothing downstream works until
-this is fixed. It is a small, well-understood change and it unblocks
-everything else in this stage.
+### 2.2 Phase 2 techniques (SE 2.6–4.4) — **done**
 
-Note this also needs a `Grid` that can carry _explicit_ candidates rather than
-always recomputing them from values, since an elimination is precisely a
-candidate that logic removed but arithmetic would put back.
-
-### 2.2 Phase 2 techniques (SE 2.6–4.4)
-
-The on-device band, and the techniques actually worth teaching:
-
-| Technique           | SE  | SE Java source   |
-| ------------------- | --- | ---------------- |
-| Pointing            | 2.6 | `Locking.java`   |
-| Claiming            | 2.8 | `Locking.java`   |
-| NakedPair / Triplet | 3.0 | `NakedSet.java`  |
-| X-Wing              | 3.2 | `Fisherman.java` |
-| HiddenPair          | 3.4 | `HiddenSet.java` |
-| Swordfish           | 3.8 | `Fisherman.java` |
-| XY-Wing / XYZ-Wing  | 4.2 | `XYWing.java`    |
-
-Port order should follow SE difficulty, since that is also roughly teaching
-order. Pointing and Claiming first: they are the simplest elimination
-techniques and the first ones a learner meets after singles.
+Ported in SE difficulty order from `Locking.java`, `NakedSet.java`,
+`HiddenSet.java`, `Fisherman.java` and `XYWing.java`. See 2.4 for the parity
+table.
 
 ### 2.3 Generator — **done**
 
-This is not a new feature so much as **closing a hole that already exists**.
-`Pointing` and `Claiming` are implemented, registered in `DEFAULT_PRODUCERS`
-and shipping with **zero benchmark validation**, because `phase2.jsonl` is
-empty — and the runner reports PASS for a technique with no puzzles, so the gap
-is silent.
-
-They were validated another way (8,756 eliminations across the Phase 1 corpus,
-none unsound), but that proves the _logic_ is right, not that the _SE difficulty
-ratings_ match. Only Phase 2 puzzles can show that.
+Built to close a hole: Pointing and Claiming shipped with no SE-rated puzzles
+to validate against. All six steps of the ordering below are done except
+`tsudoku gen` (the CLI is still a stub). The design notes are kept because
+they explain choices that are not obvious from the code.
 
 #### What it ports
 
@@ -329,20 +309,21 @@ exists rather than needing new plumbing.
 
 #### What this unblocks
 
-- Phase 2 techniques get real SE-rating validation instead of a silent PASS
-- The two **Phase 1 corpus holes** get filled — `DirectClaiming` (1.9) and full
-  house (1.0) both have zero puzzles today, so the app cannot teach either
-- Puzzle supply for the app stops being 30 hand-picked entries
-- Model training becomes possible at all (deliberately gated behind this)
+- Phase 2 techniques get real SE-rating validation — **done**, 1220 puzzles
+- The two Phase 1 corpus holes — full house (1.0) **constructed**;
+  DirectClaiming (1.9) **proven unreachable**, see above
+- Puzzle supply for the app — **done**, 192 puzzles sliced from the corpus
+- Model training becomes possible at all (still deliberately parked)
 
 #### Ordering
 
-1. Add randomised digit order to `BruteForceAnalysis` (the gap above)
-2. Port `Generator.generate` with no symmetry
-3. Generate, rate through the existing SE intake, and fill `phase2.jsonl`
-4. Fill the two Phase 1 holes
-5. Port `Symmetry` for better-looking puzzles
-6. Wire `tsudoku gen` in the CLI
+1. ~~Add randomised digit order to `BruteForceAnalysis`~~ — done
+2. ~~Port `Generator.generate` with no symmetry~~ — done
+3. ~~Generate, rate through the existing SE intake, and fill `phase2.jsonl`~~ —
+   done
+4. ~~Fill the two Phase 1 holes~~ — done (1.0 constructed, 1.9 unreachable)
+5. ~~Port `Symmetry` for better-looking puzzles~~ — done
+6. Wire `tsudoku gen` in the CLI — **open**, the CLI is a stub
 
 ### 2.8 Render performance — **confirmed, not yet fixed**
 
@@ -399,7 +380,11 @@ check that never runs. That is the part to get right, not the filtering itself.
 The harvest that filled `phase2.jsonl` makes the shape of this clear. Recorded
 now because two of the three ideas need care.
 
-#### Background generation — straightforward, do it
+#### Background generation — **done**
+
+`tools/se-reference/harvest-overnight.sh` runs unattended with ratings as
+arguments, `harvest-status.sh` monitors it, and `harvest-targeted.mjs` adds the
+local pre-filter described below. The original reasoning follows.
 
 A long-running local process generating and rating puzzles is the obvious way
 to reach hundreds per difficulty. `harvest.sh` already does the work; it needs
@@ -553,49 +538,29 @@ The local solve is ~2ms against ~40ms for an SE round trip, so the filter is
 nearly free and rejects ~99% of candidates for a rare rating before the
 expensive step.
 
-The catch, and it is a real one: this only works for techniques TSudoku has
-implemented. XWing, Swordfish and HiddenTriplet — precisely the three rarest —
-are **not implemented yet**, so they cannot be pre-filtered until 2.4 lands.
-Which is a neat circularity: implementing them makes it cheap to generate the
-puzzles needed to validate them.
-
-A weaker but immediately available version: generate, solve locally, and reject
-anything the current producers solve _completely_. That alone removes the
-easy puzzles that dominate the sample.
+**Done** (#25, "99.6% fewer SE calls"). Once 2.4 landed, the three rarest
+ratings — XWing, Swordfish, HiddenTriplet — could be pre-filtered, and each
+reached 100+ puzzles. The same trick will work for the size-4 techniques when
+Phase 3 starts, since they are already implemented.
 
 #### The actual constraint: distribution, not volume
 
-`phase2.jsonl` came out badly skewed — 33 at 2.6 and 37 at 4.2, but **one
-puzzle each at 3.2 (XWing), 3.8 (Swordfish) and 4.0 (HiddenTriplet)**. Random
-generation simply does not produce those ratings often.
-
-More volume alone will not fix this; it will produce more 2.6s and 4.2s at the
-same ratio. Filling the thin ratings needs targeted work — generate, rate,
-discard anything already well covered — which is exactly what a background
-process should be doing rather than blind accumulation.
+The first harvest came out badly skewed — one puzzle each at XWing, Swordfish
+and HiddenTriplet. Targeted harvesting fixed that; the remaining thin rating is
+**Claiming at 25**, which is cheap (1.38% hit rate) and simply has not been
+targeted. Pointing went the other way, to 305, because it is the most common
+rating and every untargeted run adds more.
 
 ### 2.4 Phase 2 techniques — **done**
 
-All ported and validated against the SE oracle:
+All ported and validated against the SE oracle. Counts are in the
+implemented-techniques table above; every rating has 100+ puzzles except
+Claiming.
 
-| Technique     | SE  | Corpus | Parity |
-| ------------- | --- | ------ | ------ |
-| Pointing      | 2.6 | 33     | 100%   |
-| Claiming      | 2.8 | **11** | 100%   |
-| NakedPair     | 3.0 | 121    | 100%   |
-| XWing         | 3.2 | 106    | 100%   |
-| HiddenPair    | 3.4 | 112    | 100%   |
-| NakedTriplet  | 3.6 | 104    | 100%   |
-| Swordfish     | 3.8 | 100    | 100%   |
-| HiddenTriplet | 4.0 | 102    | 100%   |
-| XYWing        | 4.2 | **37** | 100%   |
-| XYZWing       | 4.4 | 110    | 100%   |
-
-**Corpus gaps worth closing:** Claiming (11), XYWing (37) and Pointing (33) sit
-well below the ~100 target. 100% on 11 puzzles is a weaker claim than 100% on
-110 — the gate passes, but on a thin sample. These are rated 1.38%, 4.62% and
-4.12% hit rate respectively, so they are among the _cheap_ ones to harvest;
-they are thin because earlier runs targeted the rare ratings.
+**Corpus gap worth closing:** Claiming (**25**) sits well below the ~100
+target. 100% on 25 puzzles is a weaker claim than 100% on 110 — the gate
+passes, but on a thin sample. At a 1.38% hit rate it is among the cheap ones
+to harvest.
 
 ### 2.4t The tutor layer — **started**
 
@@ -628,8 +593,12 @@ cited against, and the ruled-out cell really is empty. **Zero false claims.**
 That check is a test, not a one-off: a lesson that reads plausibly but cites
 the wrong cell teaches a false rule the learner cannot catch.
 
-**Next:** explainers for the remaining techniques, and the UI to step through
-them. Teaching order should follow 2.4a, not SE rating order.
+**Not built yet:** any UI. `apps/web` does not import the tutor at all — a
+hint still shows only its one-line explanation. And Hidden Single is the only
+explainer; every other technique gets the one-step summary.
+
+**Next:** the UI to step through a lesson, then explainers for the remaining
+techniques. Teaching order should follow 2.4a, not SE rating order.
 
 ### 2.4a Teaching order is not SE rating order
 
@@ -666,19 +635,36 @@ ascending. Some specific consequences:
 Nothing here blocks 2.4. It changes how the techniques are _presented_ once
 the tutor layer exists, not whether they are ported.
 
-### 2.5 Notes UX
+### 2.5 Notes UX — **done**
 
-The model supports more than the UI exposes:
+Shipped across #39–#44: drag to select a run (value mode switches to note),
+tap to toggle, strike mode drawn as a pale digit under a red line, auto-notes
+that clear themselves from peers, digit focus that highlights where a number
+can still go, notes refused where a peer already holds the digit, and a tap
+off the board to reset. The selection rules are listed in the 2026-10-17
+progress entry.
 
-- **Multi-select** — `applyToSelection` works, but the UI only shift-clicks.
-  Drag-select is the natural gesture.
-- **Auto-notes** — fill every cell's included notes from the engine's real
-  candidates. One button, high value, and it makes the stale-note highlight
-  much more interesting.
-- **Excluded notes** are enterable but have no dedicated affordance beyond the
-  mode toggle.
+**The mark rules** (2026-10-20; the code's statement of them is the doc
+comment on `CellNotes`):
 
-### 2.6 CLI, as it becomes useful
+| Mark    | Mode    | Meaning                                   | Look                     |
+| ------- | ------- | ----------------------------------------- | ------------------------ |
+| Note    | Note    | Still possible — the canonical candidates | Gray; auto notes lighter |
+| Strike  | Strike  | Ruled out                                 | Pale digit, red line     |
+| Scratch | Scratch | Working marks; never touches candidates   | Bold blue                |
+
+- Note and strike are one layer: a digit is noted, struck, or neither.
+  Switching type replaces the mark; repeating the same type clears it.
+- One press is one decision for the whole selection: if any cell that can
+  take the mark lacks it, all get it; otherwise all lose it.
+- Placing a value removes it from every peer's notes, hand-written or auto.
+  Strikes and scratch in peers stay.
+- Auto-notes re-adds a digit the player un-noted, never one they struck.
+  "Keep notes filled" fills when a game starts, on reset, and when switched
+  on — never after a placement.
+- Every player action is one undo step, however many cells it touches.
+
+### 2.6 CLI, as it becomes useful — **not started** (stub)
 
 - `tsudoku rate <puzzle>` — SE-comparable rating without the Java round-trip
 - `tsudoku explain <puzzle>` — dump a full solve path; **this is how lesson
@@ -689,14 +675,16 @@ The model supports more than the UI exposes:
 
 1. ~~`applyHint` eliminations~~ — **done**, gated everything
 2. ~~Pointing + Claiming~~ — **done**
-3. ~~Generator + corpus for Phase 2~~ — **done** (836 puzzles)
-4. ~~Remaining Phase 2 techniques~~ — **done** (1443/1443)
-5. **Tutor layer + first lessons ← next**
-6. Notes UX and CLI, opportunistically
-7. Analytics and invite-only access (2.7) — last, and gated on wanting a backend
+3. ~~Generator + corpus for Phase 2~~ — **done** (1220 puzzles)
+4. ~~Remaining Phase 2 techniques~~ — **done** (1858/1858 with Phase 1)
+5. ~~Notes UX~~ — **done**
+6. **Tutor layer: lesson UI, then more explainers ← next**
+7. CLI, opportunistically
+8. Analytics and invite-only access (2.7) — last, and gated on wanting a backend
 
-Opportunistic, not blocking: render performance (2.8) and CI path filtering
-(2.9). Both are small and independent of the technique work.
+Opportunistic, not blocking: render performance (2.8), CI path filtering
+(2.9), topping up Claiming, and dark mode (nothing applies `.dark` yet). All
+small and independent of the teaching work.
 
 ### 2.7 Analytics and invite-only access — **backlogged, after Phase 2 + generator**
 
@@ -751,7 +739,7 @@ by requesting `/assets/index-*.js` directly and landing on the login page.
 That is worth knowing because the obvious alternative does not work. The app is
 a static SPA, so a passphrase checked in the client is not a gate: Vercel
 injects env vars at build time, so the value is baked into the bundle and
-readable in devtools — and the bundle, engine and all 30 puzzles have already
+readable in devtools — and the bundle, engine and every puzzle have already
 been downloaded before any prompt could render. A client-side check is an
 honest "not public yet" sign, not access control. Deployment Protection is
 the only option that stops bytes reaching an unauthorized browser, and it is a
@@ -769,8 +757,9 @@ shape is still changing means designing a schema twice.
 - **Phase 4 chain techniques** (SE 6.2+) — server-side, expert-facing, far from
   what a teaching app needs.
 - **Phase 3 uniqueness techniques** — after Phase 2 proves out.
-- **ML / model training** — blocked on the generator by deliberate rule. 607
-  puzzles across 6 rating buckets is not a training set.
+- **ML / model training** — the generator gate is cleared and the corpus is
+  1858 puzzles across 16 ratings, but there is still no question a model would
+  answer better than the engine. Parked until there is one.
 - **React Native** — after the web app proves the ideas. The architecture is
   ready; the content is not.
 
@@ -778,33 +767,28 @@ shape is still changing means designing a schema twice.
 
 ## When To Generate
 
-The corpus is 607 unique puzzles covering **6 of 8** Phase 1 ratings. Every
-bucket is capped at ~100, and two were never filled.
+The corpus is **1858 SE-rated puzzles** across every reachable rating from 1.0
+to 4.4, and every bucket but Claiming has 100+.
 
-**For play, the existing corpus is fine.** ~100 puzzles per technique level is
-a year of daily play without repeats. Don't build the generator for volume.
+**For play, the existing corpus is ample.** The app serves a 192-puzzle slice
+(12 per technique and rating), and the solved history keeps it from repeating.
+Volume is not a reason to generate.
 
-Three triggers say otherwise:
+| Trigger            | Status         | Why it matters                                  |
+| ------------------ | -------------- | ----------------------------------------------- |
+| Coverage holes     | Cleared        | 1.0 constructed; 1.9 proven unreachable         |
+| Phase 2 validation | Cleared        | 1220 puzzles, 100% parity                       |
+| Thin ratings       | **Claiming**   | 25 puzzles; cheap to top up                     |
+| Phase 3 validation | Trips on start | Size-4 techniques implemented, `phase3` empty   |
+| Gameplay volume    | Not yet        | Raise the 12-per-bucket slice before generating |
 
-| Trigger            | Status          | Why it matters                                   |
-| ------------------ | --------------- | ------------------------------------------------ |
-| Coverage holes     | **Tripped now** | DirectClaiming and full house have 0 puzzles     |
-| Phase 2 validation | **Trips at #4** | `phase2/3/4.jsonl` are all empty                 |
-| Gameplay volume    | Not yet         | 607 unique puzzles is plenty to play and iterate |
+### The silent-pass problem — **fixed**
 
-So the generator exists for **validation and coverage**, not play volume.
-
-### The silent-pass problem
-
-`benchmarks/runner.ts` filters corpus entries to implemented techniques. A
-technique with **zero** corpus puzzles therefore contributes zero failures and
-the benchmark reports **PASS**.
-
-This is live right now: DirectClaiming has never been validated against SE, and
-CI is green. Every Phase 2 technique will have the same hole as it lands. The
-"benchmark is a CI gate" guarantee is only as good as the corpus behind it.
-
-_Tracked as a follow-up: make unvalidated techniques a visible failure._
+The runner used to filter the corpus to implemented techniques, so a technique
+with no puzzles contributed no failures and reported PASS. Since #42 it lists
+every implemented technique with no rated puzzle as **unvalidated** (fatal
+under `--strict`), and names the ones that can never be a rating
+(`UNREACHABLE_TECHNIQUES`, currently just DirectClaiming) with the reason.
 
 ---
 
@@ -838,9 +822,16 @@ An AI layer on top is optional polish.
 
 ## Known Issues
 
-- **`applyHint` can't apply eliminations** — see [2.1](#21-fix-applyhint-for-eliminations--the-gate). Gates all of Phase 2.
-- **Benchmark silently passes techniques with no corpus** — see above.
-- **DirectClaiming is unvalidated** — implemented, registered, zero test puzzles.
+- **The tutor has no UI.** `@tsudoku/game` builds verified lessons, but
+  `apps/web` never shows them. See 2.4t.
+- **Dark mode is unreachable.** The board's dark tokens are defined, but
+  nothing ever applies the `.dark` class, so the app is light-only.
+- **Auto-solve preferences do nothing yet.** Saved, not acted on.
+- **Size-4 techniques are unvalidated** — `NakedQuad`, `Jellyfish` and
+  `HiddenQuad` are implemented but unregistered, with no Phase 3 corpus.
+- **Saved data is per origin.** Settings and solved history live in
+  localStorage, and each Vercel preview URL is a separate origin, so nothing
+  carries between previews and production.
 - **`pnpm benchmark --technique <name>` doesn't exist.** Referenced by
   PORTING.md step 7 and by the PR template; the runner only parses `--phases=`.
 - **`Solver.getNextHint` re-runs all producers from scratch** on every call, and
@@ -859,7 +850,7 @@ An AI layer on top is optional polish.
   `game` and `solver`, so an engine change must trigger a rebuild.
 - **`PLAN.md` describes CI jobs that don't exist** (`coverage`, nyc, Codecov)
   and an `apps/showcase` that was never created. Treat it as historical intent,
-  not a description of the repo.
+  not a description of the repo; this file is the live plan.
 
 ---
 
@@ -867,7 +858,18 @@ An AI layer on top is optional polish.
 
 Newest first. Keep entries short — what changed and why it mattered.
 
-### 2026-10-17
+### 2026-10-20
+
+- **Notes stopped getting mixed up and reverted.** Three causes, all fixed: a
+  press on a selection toggled each cell separately (so one press added to some
+  cells and removed from others); "Keep notes filled" refilled the board after
+  every placement, resurrecting removed notes; and every per-cell change was
+  its own undo step, so undoing one placement took ~50 presses. History is now
+  one entry per player action.
+- **Scratch marks** — a third, independent layer for trying an idea out,
+  drawn bold blue, untouched by auto-notes. Rules in 2.5.
+
+### 2026-10-17 (#43, #44)
 
 - **Board interaction made deliberate.** The rules, in one place:
   - A drag always starts a new selection that includes its start cell. Note
@@ -904,6 +906,32 @@ Newest first. Keep entries short — what changed and why it mattered.
   previews and production.
 - Found, not fixed: nothing ever applies the `.dark` class, so the dark board
   tokens are defined but unreachable — the app is light-only today.
+
+### 2026-09-27 (#42)
+
+- **The benchmark stopped passing techniques it never tested.** Implemented
+  techniques with no rated puzzle are reported as unvalidated (fatal under
+  `--strict`), and DirectClaiming is named as unreachable with the reason.
+
+### 2026-09-22 (#38–#41)
+
+- **Tutor layer started** (`packages/game/src/tutor/`): the `Lesson` model,
+  a Hidden Single explainer, and a fallback summary for everything else.
+  10,836 "X can't be N because Y has one" claims checked, zero false.
+- **Settings**: difficulty bands named for what they teach, auto-notes, and a
+  saved (not yet active) per-technique auto-solve preference.
+- **Notes**: larger, readable note digits; notes refused where a peer already
+  holds the digit; the cell deselects after placing a value; a drag in value
+  mode starts a note selection.
+
+### 2026-09-21 (#31–#37)
+
+- **Corpus filled out.** The harvester became stoppable and crash-safe,
+  learned Phase 1 ratings, and took ratings as arguments for overnight runs;
+  Swordfish reached 100.
+- **SE 1.0 constructed** (`constructEasy()`), since `generate()` never
+  produces full houses.
+- **SE 1.9 settled** as unreachable by construction in SE itself.
 
 ### 2026-09-20 (late)
 

@@ -1,26 +1,31 @@
 # Quick Start
 
-::: warning NOT YET IMPLEMENTED
-The API shown below is the **planned** public interface. It is not functional yet. Implementation begins in Phase 1.
+::: warning NOT YET PUBLISHED
+`@tsudoku/core` is not on npm yet. Build it from source (see [Installation](./installation.md)); the API below works today.
 :::
 
-The planned usage will look like:
-
 ```typescript
-import { createGrid, Solver } from '@tsudoku/core';
+import { createGrid, applyHint, Solver } from '@tsudoku/core';
 
 const puzzle = '530070000600195000098000060800060003400803001700020006060000280000419005000080079';
-const grid = createGrid(puzzle);
+let grid = createGrid(puzzle);
 const solver = new Solver();
 
 const hint = solver.getNextHint(grid);
-// Expected output (once implemented):
 // {
 //   type: 'direct',
-//   technique: 'NakedSingle',
-//   cell: 14,
-//   digit: 4,
-//   difficulty: 2.3,
-//   explanation: 'Cell R2C6 has only one remaining candidate: 4'
+//   technique: 'HiddenSingle',
+//   difficulty: 1.2,
+//   cell: 5,
+//   digit: 8,
+//   explanation: '8 can only go in R1C6 in box 2',
+//   involvedCells: [...],
+//   involvedCandidates: Map(...)
 // }
+
+grid = applyHint(grid, hint); // immutable -- returns a new Grid
 ```
+
+Every hint carries a human-readable `explanation` plus the cells and candidates
+involved. Elimination techniques (Pointing, X-Wing, XY-Wing and the rest of
+Phase 2) return an `EliminationHint` listing the candidates they remove.

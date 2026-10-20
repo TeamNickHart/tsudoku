@@ -17,6 +17,7 @@ const MODE_LABELS: Record<InputMode, string> = {
   value: 'Value',
   'note-included': 'Note',
   'note-excluded': 'Strike',
+  'note-scratch': 'Scratch',
 };
 
 export function App(): JSX.Element {
@@ -40,6 +41,16 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (solved) recordSolved(puzzle.puzzle);
   }, [solved, puzzle.puzzle, recordSolved]);
+
+  // "Keep notes filled" fills the whole board when a game starts and when the
+  // setting is switched on. It does not refill after each placement: placing a
+  // value already removes it from every peer's notes, and a refill would bring
+  // back notes the player deliberately removed. A repeat fill is a no-op, so
+  // this is safe to re-run.
+  const { dispatch: dispatchGame } = game;
+  useEffect(() => {
+    if (settings.autoNotes) dispatchGame({ type: 'fillNotes', all: true });
+  }, [settings.autoNotes, puzzle.puzzle, dispatchGame]);
 
   // In value mode the target is the single selected cell. When it already
   // holds a value there is nothing a digit press can do, so the pad says so
@@ -104,9 +115,9 @@ export function App(): JSX.Element {
       // how that view is dismissed.
       const entering = state.selected.length > 0;
       setFocusDigit((current) => (entering || current !== digit ? digit : null));
-      game.dispatch({ type: 'digit', digit, mode, autoNotes: settings.autoNotes });
+      game.dispatch({ type: 'digit', digit, mode });
     },
-    [game, mode, settings.autoNotes, state.selected.length],
+    [game, mode, state.selected.length],
   );
 
   /**
@@ -221,6 +232,7 @@ export function App(): JSX.Element {
       if (e.key === 'v') setMode('value');
       if (e.key === 'n') setMode('note-included');
       if (e.key === 'x') setMode('note-excluded');
+      if (e.key === 's') setMode('note-scratch');
       if (e.key === 'Escape') resetView();
 
       const focus = state.selected.length > 0 ? state.selected[state.selected.length - 1]! : 40;
@@ -334,7 +346,14 @@ export function App(): JSX.Element {
         <Button variant="outline" size="sm" onClick={game.requestHint}>
           Hint
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => game.dispatch({ type: 'reset' })}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            game.dispatch({ type: 'reset' });
+            if (settings.autoNotes) game.dispatch({ type: 'fillNotes', all: true });
+          }}
+        >
           Reset
         </Button>
         <Button
@@ -398,7 +417,8 @@ export function App(): JSX.Element {
       <p className="mt-auto text-xs text-muted-foreground">
         Tap a cell to enter a value; tap a filled cell to see where its digit can go. Drag across
         cells to select a run for notes — tap a cell to add or remove it. Tap off the board to clear
-        everything. <kbd>V</kbd> value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>Esc</kbd>{' '}
+        everything. Scratch marks are working notes that never touch your candidates. <kbd>V</kbd>{' '}
+        value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>S</kbd> scratch · <kbd>Esc</kbd>{' '}
         clear · <kbd>⌘Z</kbd> undo
       </p>
     </div>

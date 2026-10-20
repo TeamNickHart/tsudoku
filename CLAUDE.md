@@ -67,37 +67,40 @@ should do the same unless there's a discussed reason to split.
 > If the two disagree, STATUS.md wins — and fix this file.
 
 - [x] **Phase 0** — Scaffolding (repo, tooling, CI, docs skeleton) ✅
-- [x] **Phase 1** — Direct techniques (SE 1.0–2.5) ✅ **607/607 (100%) SE parity**
-- [ ] **Phase 2** — Candidate techniques (SE 2.6–4.4) ← next, with the generator
+- [x] **Phase 1** — Direct techniques (SE 1.0–2.5) ✅ 100% SE parity
+- [x] **Phase 2** — Candidate techniques (SE 2.6–4.4) ✅ 100% SE parity
+- [x] **Generator** — ported, plus `constructEasy()` and a targeted harvester ✅
+- [x] **Web game** — playable, deployed privately (`apps/web`) ✅
+- [ ] **Tutor** — lesson model + Hidden Single explainer exist; no UI yet ← next
 - [ ] **Phase 3** — Uniqueness techniques (SE 4.5–6.0)
 - [ ] **Phase 4** — Chain techniques (SE 6.2+, server-side) — deprioritized
-- [ ] **Generator** — moved up: Phase 2 has no validation corpus without it
-- [ ] **ML package** — blocked on the generator by deliberate rule
+- [ ] **ML package** — parked; no question yet that a model answers better
 
-Five producers are live in `DEFAULT_PRODUCERS`: `HiddenSingle`,
-`DirectPointing`, `DirectClaiming`, `DirectHiddenSet(2)`, `NakedSingle`,
-`DirectHiddenSet(3)`.
+Parity is **1858/1858** across 638 Phase 1 and 1220 Phase 2 corpus puzzles.
+All sixteen Phase 1–2 producers are live in `DEFAULT_PRODUCERS`.
 
 ### Landmines to know before you start
 
-- **`applyHint` cannot apply an `EliminationHint`.** In
-  `packages/core/src/models/GridImpl.ts` the elimination branch computes
-  `newCandidates`, discards it via `void newCandidates`, and rebuilds from cell
-  values only. Harmless in Phase 1 (all hints are `DirectHint`) but **it blocks
-  all of Phase 2**, which is entirely elimination-based. Fix this first.
-- **The benchmark silently passes techniques with no corpus.** The runner
-  filters to implemented techniques, so zero puzzles ⇒ zero failures ⇒ PASS.
-  `DirectClaiming` is live and has never been validated. Every Phase 2
-  technique will land in the same blind spot.
+- **Size-4 techniques exist but are unregistered.** `NakedSet`, `HiddenSet`
+  and `Fisherman` are parameterised, so `NakedQuad`/`Jellyfish`/`HiddenQuad`
+  (SE 5.0–5.4) are in the code and the `Technique` union but not in
+  `DEFAULT_PRODUCERS`, and `phase3.jsonl` is empty. The benchmark reports them
+  as unvalidated (fatal under `--strict`).
+- **`DirectClaiming` (1.9) is unreachable as a puzzle rating** by SE's own
+  scan order — not a gap to fill. The runner lists it in
+  `UNREACHABLE_TECHNIQUES` with the reason; see STATUS.md.
 - **`pnpm benchmark --technique <name>` does not exist** despite being cited in
-  PORTING.md step 7 and the PR template. The runner only parses `--phases=`.
+  PORTING.md step 7 and the PR template. The runner parses `--phases=` and
+  `--strict` only.
+- **Rebuild packages after switching branches.** `apps/web` typechecks against
+  `packages/*/dist`, so a stale build from another branch produces phantom
+  type errors. `pnpm build` fixes it.
 
 ### SE Oracle Integration
 
-The benchmark harness will incorporate the actual SudokuExplainer Java CLI
-(`serate`) as a ground-truth oracle. This lets us validate TSudoku's technique
-detection and difficulty ratings against the original SE on every puzzle,
-providing authoritative pass/fail for CI.
+The corpus is rated by the actual SudokuExplainer Java CLI (`serate`), so
+every benchmark verdict is checked against the original SE. Rating runs
+locally — CI only re-checks the committed corpus, and needs no JVM.
 
 ```bash
 # SE CLI usage (requires Java)
@@ -105,8 +108,10 @@ java -cp SudokuExplainer.jar diuf.sudoku.test.serate \
   --input=puzzles.txt --output=rated.txt --format="%g ED=%r/%p/%d"
 ```
 
-The `tools/` directory will contain wrapper scripts to run SE and compare output.
-A `tools/se-reference/` directory holds the SE jar and integration harness.
+`tools/se-reference/` holds the harness: `setup.sh` fetches the jar, `rate.sh`
+and `intake.sh` rate puzzles, `build-corpus.sh` buckets them into
+`benchmarks/corpus/phaseN.jsonl`, and the `harvest-*` scripts generate and rate
+unattended (see its README).
 
 ---
 

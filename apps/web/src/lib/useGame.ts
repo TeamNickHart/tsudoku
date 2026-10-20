@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useReducer, useState } from 'react';
 import type { Hint } from '@tsudoku/core';
 import {
-  applyMove,
-  applyToSelection,
+  applyMoves,
   boardView,
   canRedo,
   canUndo,
@@ -21,9 +20,10 @@ import {
   setDecorations,
   setSelection,
   toggleCellSelection,
+  toggleNoteOnSelection,
   undo,
 } from '@tsudoku/game';
-import type { GameState, NoteKind } from '@tsudoku/game';
+import type { GameState, Move, NoteKind } from '@tsudoku/game';
 
 /**
  * The React binding for @tsudoku/game.
@@ -33,20 +33,26 @@ import type { GameState, NoteKind } from '@tsudoku/game';
  * can reuse all of it behind an identical hook.
  */
 
-/** What digit entry does: place a value, or write a note. */
-export type InputMode = 'value' | 'note-included' | 'note-excluded';
+/** What digit entry does: place a value, or write a note, strike or scratch mark. */
+export type InputMode = 'value' | 'note-included' | 'note-excluded' | 'note-scratch';
+
+const NOTE_KIND: Record<Exclude<InputMode, 'value'>, NoteKind> = {
+  'note-included': 'included',
+  'note-excluded': 'excluded',
+  'note-scratch': 'scratch',
+};
 
 type Action =
   | { type: 'newGame'; puzzle: string }
   | { type: 'select'; cell: number; additive: boolean; mode: InputMode }
   | { type: 'setSelection'; cells: readonly number[] }
   | { type: 'clearSelection' }
-  | { type: 'digit'; digit: number; mode: InputMode; autoNotes: boolean }
+  | { type: 'digit'; digit: number; mode: InputMode }
   | { type: 'erase' }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'reset' }
-  | { type: 'fillNotes' }
+  | { type: 'fillNotes'; all?: boolean }
   | { type: 'showHint'; hint: Hint }
   | { type: 'clearHint' };
 
@@ -88,16 +94,15 @@ function reducer(state: GameState, action: Action): GameState {
         const cell = state.selected[state.selected.length - 1];
         if (cell === undefined) return state;
 
-        const placed = applyMove(cleared, { kind: 'setValue', cell, digit: action.digit });
+        const placed = applyMoves(cleared, [{ kind: 'setValue', cell, digit: action.digit }]);
         // Nothing happened — the cell was locked or the move was rejected — so
         // leave the selection alone rather than clearing it for no reason.
         if (placed === cleared) return placed;
 
-        // With auto-notes on, re-derive every empty cell's candidates so the
-        // board reflects the placement immediately. Placing already prunes the
-        // digit from peers' auto notes, but a placement can open up cells that
-        // had no notes yet, and refilling is what keeps "auto" honest.
-        const refreshed = action.autoNotes ? fillNotes(placed) : placed;
+        // No refill here. Placing already removes the digit from every peer's
+        // notes, and that is all a placement can change about the candidates.
+        // Refilling the whole board after each placement used to resurrect
+        // notes the player had deliberately removed.
 
         // Deselect after placing.
         //
@@ -106,35 +111,32 @@ function reducer(state: GameState, action: Action): GameState {
         // top of the digit highlighting, which fights the scan. Clearing it
         // puts the board back to "here is where 5 can still go" — and the
         // digit stays focused, so that view survives the placement.
-        return setSelection(refreshed, []);
+        return setSelection(placed, []);
       }
-      const note: NoteKind = action.mode === 'note-included' ? 'included' : 'excluded';
-      return applyToSelection(cleared, (cell) => ({
-        kind: 'toggleNote',
-        cell,
-        digit: action.digit,
-        note,
-      }));
+      // One press, one decision for the whole selection — see
+      // toggleNoteOnSelection.
+      return toggleNoteOnSelection(cleared, action.digit, NOTE_KIND[action.mode]);
     }
 
     case 'erase': {
       if (state.selected.length === 0) return state;
-      let next = clearDecorations(state);
-      for (const cell of next.selected) {
-        // clearValue is a no-op on a placed cell — the game layer refuses it,
-        // and undo is the way back from a placement. Still dispatched rather
-        // than skipped, so a mixed selection erases the notes it can.
-        next = applyMove(next, { kind: 'clearValue', cell });
-        next = applyMove(next, { kind: 'clearNotes', cell });
-      }
-      return next;
+      // clearValue is a no-op on a placed cell — the game layer refuses it,
+      // and undo is the way back from a placement. Still dispatched rather
+      // than skipped, so a mixed selection erases the notes it can. One
+      // action, so one undo restores everything it cleared.
+      const moves = state.selected.flatMap((cell): Move[] => [
+        { kind: 'clearValue', cell },
+        { kind: 'clearNotes', cell },
+      ]);
+      return applyMoves(clearDecorations(state), moves);
     }
 
     case 'fillNotes':
-      // Fill the selection if there is one, otherwise the whole board.
+      // Fill the selection if there is one, otherwise the whole board —
+      // unless the caller asks for the whole board outright.
       return fillNotes(
         clearDecorations(state),
-        state.selected.length > 0 ? state.selected : undefined,
+        !action.all && state.selected.length > 0 ? state.selected : undefined,
       );
 
     case 'undo':

@@ -58,40 +58,45 @@ export type CellLock = 'given' | 'placed' | 'editable';
 /**
  * A player's annotations on one cell.
  *
- * `included` and `excluded` are independent on purpose. A player may pencil in
- * "could be 3 or 7" while separately crossing out "definitely not 1". A digit
- * appearing in both is a contradiction the player has written down, and the UI
- * should show it rather than silently resolving it — being able to see your own
- * mistake is the teaching mechanic.
- */
-/**
- * A player's annotations on one cell.
+ * Two layers, deliberately separate:
  *
- * Three **disjoint** sets. There is deliberately no subset relationship
- * between them: an earlier version made `auto` a subset of the included
- * notes, which meant every mutation had to filter one array to keep it
- * consistent with another — an invariant the type could not enforce.
+ * **Candidates** — what the player believes is still possible here. Each
+ * digit is in exactly one state: unmarked, noted (`auto` or `manual`), or
+ * struck (`excluded`). The three arrays are therefore **disjoint**, and the
+ * rules below keep them so:
  *
- * - `auto` — derived by Auto-notes from the engine's candidates. The app
- *   maintains these: placing a digit silently removes it from the auto notes
- *   of every peer, because that is bookkeeping the app produced.
- * - `manual` — written by the player. The app never removes these. When a
- *   placement makes one impossible it is shown *stale* instead, because
- *   noticing that your own reasoning has been overtaken is the teaching
- *   moment.
- * - `excluded` — strikes. Always the player's, by definition: nothing
- *   generates them automatically today.
+ * - Noting a digit makes it `manual` (taking it out of `auto` and `excluded`).
+ * - Striking a digit makes it `excluded` (taking it out of `auto`/`manual`).
+ * - Repeating the same action on a digit clears it: note → note again is
+ *   unmarked, strike → strike again is unmarked. Switching type replaces.
+ * - Placing a value removes that digit from the noted candidates of every
+ *   peer — `auto` and `manual` alike, since a candidate a peer now rules out
+ *   is simply wrong. Strikes are left: they are already true.
+ * - Auto-notes (`setNotes`) fills `auto` with the engine's candidates, minus
+ *   anything the player has noted or struck. It will re-add a digit the player
+ *   merely un-noted — that is what pressing it means — but never one they
+ *   struck.
  *
- * `manual` wins if a digit would land in both: auto-fill skips digits the
- * player has already noted, and noting a digit by hand removes it from `auto`.
+ * This layer is canonical: anything that acts on "the player's candidates"
+ * (auto-play, when it exists) reads it as noted-minus-struck.
+ *
+ * **Scratch** — working marks for trying an idea out, independent of the
+ * candidates. Marking or clearing scratch never changes a candidate, and
+ * nothing automatic ever touches it, except placing a value in the cell
+ * itself, which clears everything there.
+ *
+ * `auto` and `manual` differ only in where a note came from: the UI draws
+ * auto notes lighter, and nothing else treats them differently.
  */
 export interface CellNotes {
-  /** Engine-derived possibilities, maintained by the app. Sorted ascending. */
+  /** Noted by Auto-notes from the engine's candidates. Sorted ascending. */
   readonly auto: readonly number[];
-  /** Possibilities the player wrote. Never auto-removed. Sorted ascending. */
+  /** Noted by the player. Sorted ascending. */
   readonly manual: readonly number[];
-  /** Digits the player has ruled out. Sorted ascending. Rendered struck-through. */
+  /** Struck by the player — ruled out. Sorted ascending. */
   readonly excluded: readonly number[];
+  /** Scratch marks — working notes, independent of the candidates. Sorted. */
+  readonly scratch: readonly number[];
 }
 
 /** Every digit noted as possible in a cell, from either source, sorted. */
@@ -99,8 +104,8 @@ export function includedNotes(notes: CellNotes): readonly number[] {
   return [...new Set([...notes.auto, ...notes.manual])].sort((a, b) => a - b);
 }
 
-/** Which note set a note action targets. */
-export type NoteKind = 'included' | 'excluded';
+/** Which kind of mark a note action targets: note, strike, or scratch. */
+export type NoteKind = 'included' | 'excluded' | 'scratch';
 
 /**
  * A single player action, stored so history can be replayed from the givens
@@ -140,6 +145,9 @@ export type Move =
       readonly cell: number;
       readonly digits: readonly number[];
     };
+
+/** One undoable player action: the moves it made, in order. Never empty. */
+export type HistoryEntry = readonly Move[];
 
 /**
  * What a decoration points at: a whole cell, or one digit within a cell's
@@ -203,8 +211,15 @@ export interface GameState {
   /** Player annotations per cell. */
   readonly notes: readonly CellNotes[];
 
-  /** Every move made, oldest first. Truncated when a new move follows an undo. */
-  readonly history: readonly Move[];
+  /**
+   * Every player action, oldest first, each as the moves it made. Truncated
+   * when a new action follows an undo.
+   *
+   * Grouped because one action can touch many cells — a note across a
+   * selection, Auto-notes across the board — and undo must take back exactly
+   * what the player did, not one cell of it.
+   */
+  readonly history: readonly HistoryEntry[];
 
   /**
    * How many entries of `history` are currently applied. Undo decrements,
@@ -240,23 +255,6 @@ export interface CellView {
   readonly staleNotes: readonly number[];
   /** Every digit noted as possible, from either source. Sorted. */
   readonly includedNotes: readonly number[];
-  /**
-   * Included notes the player has not also struck. Sorted.
-   *
-   * This is what digit focus scans: a strike is the player saying "not here",
-   * so a struck digit must not light the cell up as somewhere it could go —
-   * even when an auto or manual note for it is still underneath.
-   */
-  readonly liveNotes: readonly number[];
-  /**
-   * Digits the player both noted and struck — a contradiction they wrote
-   * down, shown rather than resolved. Sorted.
-   *
-   * Only `manual` notes count. The player's marks always override the app's,
-   * so striking an *auto* note is an ordinary move: the auto note stays in
-   * the data (so un-striking brings it back) but displays as a plain strike.
-   */
-  readonly conflictNotes: readonly number[];
   /** True when this cell is in the current selection. */
   readonly isSelected: boolean;
   /** Roles decorating the cell as a whole. */

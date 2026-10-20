@@ -108,8 +108,8 @@ export function SettingsPanel({
           <span>
             <span className="font-medium">Keep notes filled</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Fill every empty cell with the engine&rsquo;s candidates, and keep them up to date as
-              you play.
+              Fill every empty cell with the engine&rsquo;s candidates when a puzzle starts. Placing
+              a value always clears it from its row, column and box.
             </span>
           </span>
         </label>

@@ -48,6 +48,9 @@
        a strike should recede — while the red line stays fully visible. */
     --board-struck: 215 14% 68%;
     --board-strike: 0 72% 51%;
+    /* Scratch marks: a deeper blue than player entries (--board-entry) so a
+       bold 10px scratch digit never reads as a placed value. */
+    --board-scratch: 224 76% 48%;
 
     /* Board: selection and adjacency */
     --board-selected: 217 91% 60%;
@@ -87,6 +90,7 @@
     --board-note-stale: 31 97% 68%;
     --board-struck: 215 12% 44%;
     --board-strike: 0 84% 60%;
+    --board-scratch: 217 91% 72%;
 
     --board-selected: 213 94% 68%;
     --board-peer: 217 33% 24%;
