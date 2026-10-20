@@ -4,8 +4,10 @@ import {
   applyMoves,
   boardView,
   canRedo,
+  canRestoreSavePoint,
   canUndo,
   clearDecorations,
+  clearSavePoint,
   createGame,
   digitCounts,
   errorCells,
@@ -16,8 +18,10 @@ import {
   redo,
   remainingCount,
   resetGame,
+  restoreSavePoint,
   selectCell,
   setDecorations,
+  setSavePoint,
   setSelection,
   toggleCellSelection,
   toggleNoteOnSelection,
@@ -51,6 +55,9 @@ type Action =
   | { type: 'erase' }
   | { type: 'undo' }
   | { type: 'redo' }
+  | { type: 'setSavePoint' }
+  | { type: 'restoreSavePoint' }
+  | { type: 'clearSavePoint' }
   | { type: 'reset' }
   | { type: 'fillNotes'; all?: boolean }
   | { type: 'showHint'; hint: Hint }
@@ -143,6 +150,12 @@ function reducer(state: GameState, action: Action): GameState {
       return undo(clearDecorations(state));
     case 'redo':
       return redo(clearDecorations(state));
+    case 'setSavePoint':
+      return setSavePoint(state);
+    case 'restoreSavePoint':
+      return restoreSavePoint(clearDecorations(state));
+    case 'clearSavePoint':
+      return clearSavePoint(state);
     case 'reset':
       return resetGame(state);
 
@@ -215,6 +228,8 @@ export function useGame(initialPuzzle: string) {
     newGame,
     canUndo: canUndo(state),
     canRedo: canRedo(state),
+    hasSavePoint: state.savePoint !== null,
+    canRestoreSavePoint: canRestoreSavePoint(state),
     dispatch,
   };
 }

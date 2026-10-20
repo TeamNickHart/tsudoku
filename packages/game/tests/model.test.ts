@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  setSavePoint,
+  restoreSavePoint,
+  resetGame,
+  redo,
+  clearSavePoint,
+  canRestoreSavePoint,
   applyMove,
   applyToSelection,
   boardView,
@@ -499,5 +505,83 @@ describe('note sets stay disjoint', () => {
     const merged = includedNotes(game.notes[cell]!);
     expect(new Set(merged).size).toBe(merged.length);
     expect(merged).toEqual([...merged].sort((a, b) => a - b));
+  });
+});
+
+describe('save point', () => {
+  /** Values and every kind of mark — what "exactly as it was" means. */
+  function board(game: ReturnType<typeof createGame>): string {
+    return JSON.stringify({ entries: game.entries, notes: game.notes });
+  }
+
+  /** A game with a value, a note, a strike and a scratch mark on it. */
+  function marked(): ReturnType<typeof createGame> {
+    let game = fillNotes(createGame(EASY));
+    game = applyMove(game, { kind: 'setValue', cell: 2, digit: 4 });
+    game = applyMove(game, { kind: 'addNote', cell: 3, digit: 2, note: 'included' });
+    game = applyMove(game, { kind: 'addNote', cell: 5, digit: 2, note: 'excluded' });
+    game = applyMove(game, { kind: 'addNote', cell: 6, digit: 2, note: 'scratch' });
+    return game;
+  }
+
+  it('restores values and every kind of mark exactly', () => {
+    let game = setSavePoint(marked());
+    const saved = board(game);
+
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 2 });
+    game = applyMove(game, { kind: 'addNote', cell: 6, digit: 2, note: 'scratch' });
+    game = applyMove(game, { kind: 'addNote', cell: 7, digit: 1, note: 'excluded' });
+    game = fillNotes(game);
+    expect(board(game)).not.toBe(saved);
+
+    game = restoreSavePoint(game);
+    expect(board(game)).toBe(saved);
+  });
+
+  it('keeps the save point after returning, so another attempt can start there', () => {
+    let game = setSavePoint(marked());
+    const point = game.savePoint;
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 2 });
+    game = restoreSavePoint(game);
+    expect(game.savePoint).toBe(point);
+
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 9 });
+    expect(game.savePoint).toBe(point);
+    expect(board(restoreSavePoint(game))).toBe(board(setSavePoint(marked())));
+  });
+
+  it('lets redo bring the abandoned attempt back', () => {
+    let game = setSavePoint(marked());
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 2 });
+    const attempt = board(game);
+    game = redo(restoreSavePoint(game));
+    expect(board(game)).toBe(attempt);
+  });
+
+  it('does nothing without a save point, or when already there', () => {
+    const game = marked();
+    expect(restoreSavePoint(game)).toBe(game);
+    expect(canRestoreSavePoint(game)).toBe(false);
+    const saved = setSavePoint(game);
+    expect(canRestoreSavePoint(saved)).toBe(false);
+    expect(restoreSavePoint(saved)).toBe(saved);
+  });
+
+  it('is forgotten when cleared, or on reset', () => {
+    let game = setSavePoint(marked());
+    game = applyMove(game, { kind: 'setValue', cell: 3, digit: 2 });
+    expect(canRestoreSavePoint(game)).toBe(true);
+    expect(clearSavePoint(game).savePoint).toBeNull();
+    expect(resetGame(game).savePoint).toBeNull();
+  });
+
+  it('is dropped when a new action replaces the history it pointed into', () => {
+    let game = setSavePoint(marked());
+    game = undo(undo(game));
+    expect(game.savePoint).not.toBeNull();
+    // Undoing past the save point is fine on its own...
+    game = applyMove(game, { kind: 'setValue', cell: 7, digit: 1 });
+    // ...but acting from there discards the moves it needed.
+    expect(game.savePoint).toBeNull();
   });
 });
