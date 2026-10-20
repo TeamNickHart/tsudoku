@@ -228,6 +228,16 @@ export interface GameState {
   readonly historyIndex: number;
 
   /**
+   * The save point: a `historyIndex` the player can return to, or `null`.
+   *
+   * An index rather than a snapshot because history replay is deterministic —
+   * replaying the first `savePoint` entries rebuilds the board exactly as it
+   * was, values and every kind of mark. It also keeps returning an ordinary
+   * history move, so redo can bring the abandoned attempt back.
+   */
+  readonly savePoint: number | null;
+
+  /**
    * Currently selected cells, in selection order.
    *
    * An array rather than a single index because annotating several cells at

@@ -279,6 +279,7 @@ export function App(): JSX.Element {
           {errors.length > 0 && (
             <span className="ml-2 text-board-error">{errors.length} wrong</span>
           )}
+          {game.hasSavePoint && <span className="ml-2">· Save point set</span>}
         </span>
         {solved ? (
           <span className="font-medium text-board-primary">Solved</span>
@@ -335,6 +336,40 @@ export function App(): JSX.Element {
         >
           Redo
         </Button>
+        {/*
+         * One save point at a time. Setting it bookmarks the board; returning
+         * puts values and every kind of mark back exactly as they were (redo
+         * can still bring the attempt back); clearing it means "I'm satisfied
+         * with what I've done since".
+         */}
+        {game.hasSavePoint ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => game.dispatch({ type: 'restoreSavePoint' })}
+              disabled={!game.canRestoreSavePoint}
+            >
+              Return to save point
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => game.dispatch({ type: 'clearSavePoint' })}
+            >
+              Clear save point
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => game.dispatch({ type: 'setSavePoint' })}
+            title="Bookmark the board so you can try an idea and come back"
+          >
+            Save point
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
