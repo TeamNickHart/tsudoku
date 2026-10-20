@@ -21,29 +21,39 @@ The goal is a **Sudoku game that teaches you to play better**, not one that just
 
 ## Project Status
 
-**Phase 1 is complete**, with **100% agreement against SudokuExplainer** across a 607-puzzle corpus. The core engine correctly detects and rates every direct technique in the SE 1.0–2.5 band.
+**Phases 1 and 2 are complete**, with **100% agreement against SudokuExplainer** across a 1858-puzzle corpus. The engine correctly detects and rates every technique in the SE 1.0–4.4 band — singles through X-Wing, Swordfish and XYZ-Wing.
 
-Everything downstream of `@tsudoku/core` — solver, generator, CLI, UI — is still scaffolding.
+On top of it sit a framework-free game layer (`@tsudoku/game`), a puzzle generator, and a playable web app. The app is deployed privately while it takes shape; the next big piece is the **tutor** — stepping a player through _why_ a technique works, not just where it applies.
 
 See **[STATUS.md](./STATUS.md)** for the honest, current picture: what works, what's next, and the known issues.
 
 ```
-$ pnpm benchmark:quick
+$ pnpm benchmark
 
+  Claiming                  25/25 (100.0%) PASS
   DirectHiddenPair          103/103 (100.0%) PASS
   DirectHiddenTriplet       100/100 (100.0%) PASS
-  DirectPointing            100/100 (100.0%) PASS
-  HiddenSingle              204/204 (100.0%) PASS
+  DirectPointing            106/106 (100.0%) PASS
+  HiddenPair                123/123 (100.0%) PASS
+  HiddenSingle              229/229 (100.0%) PASS
+  HiddenTriplet             102/102 (100.0%) PASS
+  NakedPair                 131/131 (100.0%) PASS
   NakedSingle               100/100 (100.0%) PASS
+  NakedTriplet              108/108 (100.0%) PASS
+  Pointing                  305/305 (100.0%) PASS
+  Swordfish                 100/100 (100.0%) PASS
+  XWing                     110/110 (100.0%) PASS
+  XYWing                    100/100 (100.0%) PASS
+  XYZWing                   116/116 (100.0%) PASS
 
-  Overall: 607/607 (100.0%)      Status: PASS
+  Overall: 1858/1858 (100.0%)
 ```
 
 ---
 
 ## What Works Today
 
-`@tsudoku/core` solves puzzles through the Phase 1 technique band and explains every step:
+`@tsudoku/core` solves puzzles through the Phase 2 technique band and explains every step:
 
 ```typescript
 import { createGrid, applyHint, Solver } from '@tsudoku/core';
@@ -80,15 +90,17 @@ technique _detection_.
 
 pnpm monorepo; packages publish under the `@tsudoku` scope.
 
-| Package                                            | Description                                      | Status               |
-| -------------------------------------------------- | ------------------------------------------------ | -------------------- |
-| [`@tsudoku/core`](./packages/core)                 | Grid model, candidate engine, techniques, solver | **Phase 1 complete** |
-| [`@tsudoku/solver`](./packages/solver)             | Full solve-path recording                        | Stub                 |
-| [`@tsudoku/generator`](./packages/generator)       | Puzzle generation + SE-compatible rating         | Stub                 |
-| [`@tsudoku/cli`](./packages/cli)                   | CLI for solving, rating, explaining, generating  | Stub                 |
-| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks                | Stub                 |
+| Package                                            | Description                                      | Status                      |
+| -------------------------------------------------- | ------------------------------------------------ | --------------------------- |
+| [`@tsudoku/core`](./packages/core)                 | Grid model, candidate engine, techniques, solver | **Phases 1–2 complete**     |
+| [`@tsudoku/game`](./packages/game)                 | Framework-free game state, notes, history, tutor | **Working**                 |
+| [`@tsudoku/solver`](./packages/solver)             | Brute force, uniqueness, solution strings        | **Working**                 |
+| [`@tsudoku/generator`](./packages/generator)       | Puzzle generation with SE-compatible rating      | **Working**                 |
+| [`apps/web`](./apps/web)                           | The web game                                     | **Working** (private)       |
+| [`@tsudoku/cli`](./packages/cli)                   | CLI for solving, rating, explaining, generating  | Stub                        |
+| [`@tsudoku/react-native`](./packages/react-native) | React Native components and hooks                | Stub — after web proves out |
 
-Planned but not yet created: `@tsudoku/game` (framework-free game state) and `@tsudoku/web` (the web UI). See [STATUS.md](./STATUS.md#the-architecture-split) for how the layers divide.
+See [STATUS.md](./STATUS.md#the-architecture-split) for how the layers divide.
 
 ---
 
@@ -98,22 +110,35 @@ Phases match SudokuExplainer's difficulty scale. For technique descriptions and 
 
 ### Phase 1 — Direct (SE 1.0–2.5) — **Complete**
 
-| Technique             | SE rating       | SE parity       |
-| --------------------- | --------------- | --------------- |
-| Hidden Single         | 1.0 / 1.2 / 1.5 | 204/204         |
-| Direct Pointing       | 1.7             | 100/100         |
-| Direct Claiming       | 1.9             | _no corpus yet_ |
-| Direct Hidden Pair    | 2.0             | 103/103         |
-| Naked Single          | 2.3             | 100/100         |
-| Direct Hidden Triplet | 2.5             | 100/100         |
+| Technique             | SE rating       | SE parity                     |
+| --------------------- | --------------- | ----------------------------- |
+| Hidden Single         | 1.0 / 1.2 / 1.5 | 229/229                       |
+| Direct Pointing       | 1.7             | 106/106                       |
+| Direct Claiming       | 1.9             | _unreachable as a rating_[^1] |
+| Direct Hidden Pair    | 2.0             | 103/103                       |
+| Naked Single          | 2.3             | 100/100                       |
+| Direct Hidden Triplet | 2.5             | 100/100                       |
 
-### Phase 2 — Candidate-based (SE 2.6–4.4) — Next up
+[^1]: Implemented and correct, but SE's own scan order means it can never be a puzzle's hardest step. See [STATUS.md](./STATUS.md).
 
-Pointing & Claiming (Locked Candidates), Naked/Hidden Sets (pairs–quads), X-Wing, Swordfish, Jellyfish, XY-Wing, XYZ-Wing.
+### Phase 2 — Candidate-based (SE 2.6–4.4) — **Complete**
+
+| Technique      | SE rating | SE parity |
+| -------------- | --------- | --------- |
+| Pointing       | 2.6       | 305/305   |
+| Claiming       | 2.8       | 25/25     |
+| Naked Pair     | 3.0       | 131/131   |
+| X-Wing         | 3.2       | 110/110   |
+| Hidden Pair    | 3.4       | 123/123   |
+| Naked Triplet  | 3.6       | 108/108   |
+| Swordfish      | 3.8       | 100/100   |
+| Hidden Triplet | 4.0       | 102/102   |
+| XY-Wing        | 4.2       | 100/100   |
+| XYZ-Wing       | 4.4       | 116/116   |
 
 ### Phase 3 — Uniqueness (SE 4.5–6.0) — Not started
 
-Unique Rectangles (types 1–4), Unique Loops, Bivalue Universal Graves.
+Unique Rectangles (types 1–4), Unique Loops, Bivalue Universal Graves — plus Naked Quad, Jellyfish and Hidden Quad (5.0–5.4), which are already implemented as size-4 sets and fish but not yet registered or validated.
 
 ### Phase 4 — Chains (SE 6.2+) — Deferred
 
