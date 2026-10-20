@@ -15,6 +15,7 @@ export type {
   DecorationRole,
   DecorationTarget,
   GameState,
+  HistoryEntry,
   Move,
   NoteKind,
 } from './types.js';
@@ -22,6 +23,7 @@ export type {
 export {
   InvalidPuzzleError,
   applyMove,
+  applyMoves,
   applyToSelection,
   boardView,
   canRedo,
@@ -45,6 +47,7 @@ export {
   setSelection,
   toGrid,
   toggleCellSelection,
+  toggleNoteOnSelection,
   toPuzzleString,
   undo,
 } from './game.js';

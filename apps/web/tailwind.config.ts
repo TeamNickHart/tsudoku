@@ -41,6 +41,7 @@ export default {
           'note-stale': 'hsl(var(--board-note-stale))',
           struck: 'hsl(var(--board-struck))',
           strike: 'hsl(var(--board-strike))',
+          scratch: 'hsl(var(--board-scratch))',
           selected: 'hsl(var(--board-selected))',
           peer: 'hsl(var(--board-peer))',
           primary: 'hsl(var(--board-primary))',

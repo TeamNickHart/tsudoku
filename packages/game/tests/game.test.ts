@@ -317,8 +317,10 @@ describe('serialization', () => {
 
   it('stays small enough to persist comfortably', () => {
     const game = createGame(EASY);
-    // A Grid serializes to ~40KB; game state must not.
-    expect(JSON.stringify(game).length).toBeLessThan(4000);
+    // A Grid serializes to ~40KB; game state must not. The budget is loose on
+    // purpose — it is here to catch a Grid sneaking into state, not to count
+    // bytes. (Each cell's empty note sets are most of it.)
+    expect(JSON.stringify(game).length).toBeLessThan(6000);
   });
 });
 

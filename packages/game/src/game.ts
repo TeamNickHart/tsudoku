@@ -9,6 +9,7 @@ import type {
   Decoration,
   DecorationRole,
   GameState,
+  HistoryEntry,
   Move,
   NoteKind,
 } from './types.js';
@@ -28,7 +29,7 @@ export class InvalidPuzzleError extends Error {
  * assertions below are safe for that reason and are not repeated per line.
  */
 
-const EMPTY_NOTES: CellNotes = { auto: [], manual: [], excluded: [] };
+const EMPTY_NOTES: CellNotes = { auto: [], manual: [], excluded: [], scratch: [] };
 
 /**
  * Cells sharing a row, column or box with the given cell.
@@ -160,17 +161,29 @@ function sorted(digits: Iterable<number>): readonly number[] {
   return [...new Set(digits)].sort((a, b) => a - b);
 }
 
+/** Whether `digit` currently carries the given kind of mark in a cell. */
+function hasMark(notes: CellNotes, kind: NoteKind, digit: number): boolean {
+  switch (kind) {
+    case 'included':
+      return notes.auto.includes(digit) || notes.manual.includes(digit);
+    case 'excluded':
+      return notes.excluded.includes(digit);
+    case 'scratch':
+      return notes.scratch.includes(digit);
+  }
+}
+
 /**
- * Add or remove a single digit from one of a cell's note sets.
+ * Give one digit a kind of mark, or take it away.
  *
  * Deliberately takes one digit rather than a whole replacement set. An earlier
  * version passed the new included list and treated every digit in it as
  * manual, so toggling one note off silently took ownership of every *other*
  * note in the cell.
  *
- * Writing an included note by hand moves that digit into `manual` and out of
- * `auto`: the player has taken ownership, so the app stops maintaining it.
- * Removing one clears it from both, since it is gone either way.
+ * Notes and strikes are one layer — a digit is noted, struck, or neither — so
+ * marking one kind takes the digit out of the other (see CellNotes). Scratch is
+ * its own layer and never disturbs them.
  */
 function withNoteDigit(
   notes: CellNotes,
@@ -178,21 +191,33 @@ function withNoteDigit(
   digit: number,
   present: boolean,
 ): CellNotes {
-  if (kind === 'excluded') {
+  const without = (digits: readonly number[]): readonly number[] =>
+    digits.filter((d) => d !== digit);
+
+  if (kind === 'scratch') {
     return {
-      auto: notes.auto,
-      manual: notes.manual,
-      excluded: present
-        ? sorted([...notes.excluded, digit])
-        : notes.excluded.filter((d) => d !== digit),
+      ...notes,
+      scratch: present ? sorted([...notes.scratch, digit]) : without(notes.scratch),
     };
   }
 
-  return {
-    auto: notes.auto.filter((d) => d !== digit),
-    manual: present ? sorted([...notes.manual, digit]) : notes.manual.filter((d) => d !== digit),
-    excluded: notes.excluded,
+  // Either way the digit leaves the candidate layer first; then, if being
+  // marked, it lands in exactly one set.
+  const cleared: CellNotes = {
+    auto: without(notes.auto),
+    manual: without(notes.manual),
+    excluded: without(notes.excluded),
+    scratch: notes.scratch,
   };
+  if (!present) {
+    // Removing a note leaves a strike alone, and vice versa.
+    return kind === 'included'
+      ? { ...cleared, excluded: notes.excluded }
+      : { ...cleared, auto: notes.auto, manual: notes.manual };
+  }
+  return kind === 'included'
+    ? { ...cleared, manual: sorted([...cleared.manual, digit]) }
+    : { ...cleared, excluded: sorted([...cleared.excluded, digit]) };
 }
 
 /**
@@ -227,17 +252,20 @@ function reduce(state: GameState, move: Move): GameState {
       // Entering a value clears that cell's notes — they described an unknown.
       notes[move.cell] = EMPTY_NOTES;
 
-      // Placing a digit makes it impossible in every peer, so an *auto* note
-      // for it there is now obsolete bookkeeping and goes quietly. A note the
-      // player wrote by hand is deliberately left alone: it will show as stale,
-      // which is the point — see the note on CellNotes.auto.
+      // Placing a digit makes it impossible in every peer, so a note for it
+      // there is now simply wrong and goes — whoever wrote it. The candidate
+      // layer is canonical (see CellNotes), so it must not carry a candidate a
+      // placed digit rules out. Strikes are left, being already true, and so
+      // is scratch, which is the player's to manage.
       for (const peer of peerIndices(move.cell)) {
         const peerNotes = notes[peer]!;
-        if (!peerNotes.auto.includes(move.digit)) continue;
+        if (!peerNotes.auto.includes(move.digit) && !peerNotes.manual.includes(move.digit)) {
+          continue;
+        }
         notes[peer] = {
+          ...peerNotes,
           auto: peerNotes.auto.filter((d) => d !== move.digit),
-          manual: peerNotes.manual,
-          excluded: peerNotes.excluded,
+          manual: peerNotes.manual.filter((d) => d !== move.digit),
         };
       }
 
@@ -260,18 +288,13 @@ function reduce(state: GameState, move: Move): GameState {
       //
       // Removing such a note is still allowed: one may already exist from
       // before the peer was filled, and the player must be able to tidy up.
+      const cellNotes = state.notes[move.cell]!;
+      const present = hasMark(cellNotes, move.note, move.digit);
       if (isDigitPlacedInPeer(state, move.cell, move.digit)) {
-        const existing = state.notes[move.cell]!;
-        const present =
-          move.note === 'included'
-            ? includedNotes(existing).includes(move.digit)
-            : existing.excluded.includes(move.digit);
         if (!present || move.kind === 'addNote') return state;
       }
-      const cellNotes = state.notes[move.cell]!;
-      const current = move.note === 'included' ? includedNotes(cellNotes) : cellNotes.excluded;
 
-      if (current.includes(move.digit)) {
+      if (present) {
         if (move.kind === 'addNote') return state;
         // toggleNote on an existing digit removes it.
         const notes = [...state.notes];
@@ -285,8 +308,7 @@ function reduce(state: GameState, move: Move): GameState {
     }
     case 'removeNote': {
       const cellNotes = state.notes[move.cell]!;
-      const current = move.note === 'included' ? includedNotes(cellNotes) : cellNotes.excluded;
-      if (!current.includes(move.digit)) return state;
+      if (!hasMark(cellNotes, move.note, move.digit)) return state;
       const notes = [...state.notes];
       notes[move.cell] = withNoteDigit(cellNotes, move.note, move.digit, false);
       return { ...state, notes };
@@ -294,14 +316,17 @@ function reduce(state: GameState, move: Move): GameState {
     case 'setNotes': {
       if (state.entries[move.cell] !== null) return state;
       const cellNotes = state.notes[move.cell]!;
+      // Engine-derived, so they land in `auto`. Digits the player noted or
+      // struck are skipped: a strike is a decision Auto-notes must not undo,
+      // and skipping both keeps the sets disjoint.
+      const auto = sorted(
+        move.digits.filter((d) => !cellNotes.manual.includes(d) && !cellNotes.excluded.includes(d)),
+      );
+      // Unchanged is a no-op, so pressing Auto-notes twice leaves no empty
+      // undo step behind.
+      if (auto.join() === cellNotes.auto.join()) return state;
       const notes = [...state.notes];
-      // Engine-derived, so they land in `auto`. Digits the player already noted
-      // by hand are skipped — manual wins, and the sets stay disjoint.
-      notes[move.cell] = {
-        auto: sorted(move.digits.filter((d) => !cellNotes.manual.includes(d))),
-        manual: cellNotes.manual,
-        excluded: cellNotes.excluded,
-      };
+      notes[move.cell] = { ...cellNotes, auto };
       return { ...state, notes };
     }
     case 'clearNotes': {
@@ -309,7 +334,8 @@ function reduce(state: GameState, move: Move): GameState {
       if (
         cellNotes.auto.length === 0 &&
         cellNotes.manual.length === 0 &&
-        cellNotes.excluded.length === 0
+        cellNotes.excluded.length === 0 &&
+        cellNotes.scratch.length === 0
       ) {
         return state;
       }
@@ -321,65 +347,96 @@ function reduce(state: GameState, move: Move): GameState {
 }
 
 /**
- * Apply a move and record it in history.
+ * Apply several moves as **one** player action — one history entry, so one
+ * undo takes all of them back.
  *
- * Moves made after an undo truncate the redo tail, which is the behaviour
- * every editor has trained people to expect.
+ * Moves that change nothing are dropped, and if none changes anything the
+ * action leaves no history entry at all. Moves made after an undo truncate the
+ * redo tail, which is the behaviour every editor has trained people to expect.
  */
-export function applyMove(state: GameState, move: Move): GameState {
-  if (move.cell < 0 || move.cell >= CELL_COUNT) {
-    return state;
+export function applyMoves(state: GameState, moves: readonly Move[]): GameState {
+  let current = state;
+  const applied: Move[] = [];
+  for (const move of moves) {
+    if (move.cell < 0 || move.cell >= CELL_COUNT) continue;
+    if ('digit' in move && (move.digit < 1 || move.digit > SIZE)) continue;
+    const next = reduce(current, move);
+    if (next !== current) {
+      applied.push(move);
+      current = next;
+    }
   }
-  if ('digit' in move && (move.digit < 1 || move.digit > SIZE)) {
-    return state;
-  }
+  if (applied.length === 0) return state;
 
-  const next = reduce(state, move);
-  // A move that changed nothing should not occupy a history slot.
-  if (next === state) {
-    return state;
-  }
-
-  const history = [...state.history.slice(0, state.historyIndex), move];
-  return { ...next, history, historyIndex: history.length };
+  const entry: HistoryEntry = applied;
+  const history = [...state.history.slice(0, state.historyIndex), entry];
+  return { ...current, history, historyIndex: history.length };
 }
 
-/** Apply the same kind of move to every selected cell. */
+/** Apply one move as its own player action. */
+export function applyMove(state: GameState, move: Move): GameState {
+  return applyMoves(state, [move]);
+}
+
+/** Apply the same kind of move to every selected cell, as one action. */
 export function applyToSelection(state: GameState, build: (cell: number) => Move): GameState {
-  let current = state;
-  for (const cell of state.selected) {
-    current = applyMove(current, build(cell));
-  }
-  return current;
+  return applyMoves(state, state.selected.map(build));
 }
 
 /**
- * Fill every empty cell's included notes with the engine's real candidates.
+ * Press a digit in a note mode: mark it across the whole selection, or clear
+ * it from the whole selection — one decision, one undo step.
+ *
+ * If every selected cell that can take the mark already has it, the press
+ * clears it from all of them; otherwise it marks all of them. Toggling cell by
+ * cell instead would add the digit to some cells and remove it from others in
+ * a single press, which is how a selection got "mixed up".
+ *
+ * Filled and given cells are ignored, and so is a cell where the digit is
+ * already placed in a peer, since it cannot be marked there.
+ */
+export function toggleNoteOnSelection(state: GameState, digit: number, kind: NoteKind): GameState {
+  const open = state.selected.filter(
+    (cell) => state.entries[cell] === null && !isGiven(state, cell),
+  );
+  const marked = (cell: number): boolean => hasMark(state.notes[cell] ?? EMPTY_NOTES, kind, digit);
+  const markable = open.filter((cell) => marked(cell) || !isDigitPlacedInPeer(state, cell, digit));
+  if (markable.length === 0) return state;
+
+  const clearing = markable.every(marked);
+  return applyMoves(
+    state,
+    markable.map(
+      (cell): Move => ({ kind: clearing ? 'removeNote' : 'addNote', cell, digit, note: kind }),
+    ),
+  );
+}
+
+/**
+ * Fill every empty cell's notes with the engine's real candidates — one
+ * action, so one undo removes the whole fill.
  *
  * This is the "auto-notes" / "fill pencil marks" button every Sudoku app has.
  * The engine already knows the answer — a cell's `candidateList` is exactly the
  * set of digits not ruled out by a peer — so this is a read, not a computation.
  *
- * Note the result is *truth at this moment*: it reflects eliminations the
- * engine has applied. That is deliberately different from what the player might
- * have pencilled themselves, and comparing the two is the teaching moment
- * `staleNotes` exposes.
- *
- * Existing excluded notes are preserved; only included notes are replaced.
+ * It re-adds a candidate the player had un-noted (pressing it is asking for
+ * exactly that) but never one they struck, and leaves notes they wrote and
+ * scratch marks as they are.
  */
 export function fillNotes(state: GameState, cells?: readonly number[]): GameState {
   const grid = toGrid(state);
   const targets = cells ?? Array.from({ length: CELL_COUNT }, (_, i) => i);
 
-  let current = state;
+  const moves: Move[] = [];
   for (const cell of targets) {
-    if (current.entries[cell] !== null) continue;
-    if (isGiven(current, cell)) continue;
+    if (state.entries[cell] !== null) continue;
+    if (isGiven(state, cell)) continue;
     const digits = grid.getCellByIndex(cell).candidateList;
     if (digits.length === 0) continue;
-    current = applyMove(current, { kind: 'setNotes', cell, digits });
+    moves.push({ kind: 'setNotes', cell, digits });
   }
-  return current;
+  return applyMoves(state, moves);
 }
 
 /** Whether there is anything to undo. */
@@ -393,7 +450,7 @@ export function canRedo(state: GameState): boolean {
 }
 
 /**
- * Step back one move.
+ * Step back one player action.
  *
  * Implemented as replay-from-givens rather than by storing snapshots: the state
  * to rebuild is 81 cells, so replaying is microseconds, and it keeps history a
@@ -404,7 +461,7 @@ export function undo(state: GameState): GameState {
   return replay(state, state.historyIndex - 1);
 }
 
-/** Step forward one move. */
+/** Step forward one player action. */
 export function redo(state: GameState): GameState {
   if (!canRedo(state)) return state;
   return replay(state, state.historyIndex + 1);
@@ -414,7 +471,9 @@ export function redo(state: GameState): GameState {
 function replay(state: GameState, count: number): GameState {
   let current: GameState = { ...state, ...blankBoard(state.puzzle) };
   for (let i = 0; i < count; i++) {
-    current = reduce(current, state.history[i]!);
+    for (const move of state.history[i]!) {
+      current = reduce(current, move);
+    }
   }
   return {
     ...current,
@@ -581,8 +640,6 @@ export function cellView(state: GameState, index: number, grid?: Grid): CellView
     isError,
     staleNotes,
     includedNotes: included,
-    liveNotes: included.filter((d) => !notes.excluded.includes(d)),
-    conflictNotes: notes.manual.filter((d) => notes.excluded.includes(d)),
     isSelected: state.selected.includes(index),
     roles,
     noteRoles,

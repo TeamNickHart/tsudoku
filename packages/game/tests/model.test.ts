@@ -16,6 +16,7 @@ import {
   setDecorations,
   setSelection,
   toggleCellSelection,
+  toggleNoteOnSelection,
   undo,
 } from '../src/index.js';
 import type { Decoration } from '../src/index.js';
@@ -33,49 +34,55 @@ describe('excluded notes', () => {
     expect(game.notes[BLANK]!.excluded).toEqual([2]);
   });
 
-  it('lets a digit be in both sets — a contradiction the player wrote down', () => {
+  it('keeps note and strike exclusive — switching type replaces the mark', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'excluded' });
-
-    // The model does not silently resolve this; the UI should surface it.
-    expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([]);
     expect(game.notes[BLANK]!.excluded).toEqual([4]);
+
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
+    expect(game.notes[BLANK]!.excluded).toEqual([]);
   });
 
-  it('masks struck digits out of liveNotes, for manual and auto notes alike', () => {
+  it('clears a mark when the same type is repeated, without resurrecting a note', () => {
+    let game = fillNotes(createGame(EASY));
+    const digit = game.notes[BLANK]!.auto[0]!;
+    const strike = { kind: 'toggleNote', cell: BLANK, digit, note: 'excluded' } as const;
+    game = applyMove(game, strike);
+    expect(game.notes[BLANK]!.excluded).toEqual([digit]);
+
+    // Strike → strike again → unmarked. The auto note it replaced is gone.
+    game = applyMove(game, strike);
+    expect(game.notes[BLANK]!.excluded).toEqual([]);
+    expect(includedNotes(game.notes[BLANK]!)).not.toContain(digit);
+  });
+
+  it('keeps scratch marks independent of notes and strikes', () => {
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'excluded' });
-    expect(cellView(game, BLANK).includedNotes).toEqual([4]);
-    expect(cellView(game, BLANK).liveNotes).toEqual([]);
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'excluded' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 4, note: 'scratch' });
+    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: 2, note: 'scratch' });
+    expect(game.notes[BLANK]!.scratch).toEqual([2, 4]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
+    expect(game.notes[BLANK]!.excluded).toEqual([2]);
 
-    game = fillNotes(game);
-    const auto = game.notes[BLANK]!.auto;
-    expect(auto.length).toBeGreaterThan(0);
-    const struck = auto[0]!;
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
-    expect(cellView(game, BLANK).includedNotes).toContain(struck);
-    expect(cellView(game, BLANK).liveNotes).not.toContain(struck);
+    game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: 4, note: 'scratch' });
+    expect(game.notes[BLANK]!.scratch).toEqual([2]);
+    expect(includedNotes(game.notes[BLANK]!)).toEqual([4]);
   });
 
-  it('flags only manual notes as conflicts — a strike overrides an auto note', () => {
-    let game = fillNotes(createGame(EASY));
-    const struck = game.notes[BLANK]!.auto[0]!;
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
-    // Struck auto note: still in the data, but not a contradiction.
-    expect(game.notes[BLANK]!.auto).toContain(struck);
-    expect(cellView(game, BLANK).conflictNotes).toEqual([]);
-
-    // Un-striking brings the auto note straight back.
-    game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: struck, note: 'excluded' });
-    expect(cellView(game, BLANK).liveNotes).toContain(struck);
-
-    // A note the player wrote, then struck, is a contradiction they own.
-    game = createGame(EASY);
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'included' });
-    game = applyMove(game, { kind: 'addNote', cell: BLANK, digit: struck, note: 'excluded' });
-    expect(cellView(game, BLANK).conflictNotes).toEqual([struck]);
+  it('leaves scratch alone when Auto-notes runs', () => {
+    let game = applyMove(createGame(EASY), {
+      kind: 'addNote',
+      cell: BLANK,
+      digit: 4,
+      note: 'scratch',
+    });
+    game = fillNotes(game);
+    expect(game.notes[BLANK]!.scratch).toEqual([4]);
   });
 
   it('toggles a note off', () => {
@@ -150,8 +157,38 @@ describe('multi-select', () => {
     expect(includedNotes(game.notes[2]!)).toEqual([2]);
     expect(includedNotes(game.notes[3]!)).toEqual([2]);
     expect(includedNotes(game.notes[5]!)).toEqual([2]);
-    // One history entry per cell, so undo steps back one cell at a time.
-    expect(game.history).toHaveLength(3);
+    // One action, one history entry: undo takes back the whole selection.
+    expect(game.history).toHaveLength(1);
+    expect(undo(game).notes.every((n) => includedNotes(n).length === 0)).toBe(true);
+  });
+
+  it('decides add-or-clear once for the whole selection', () => {
+    let game = createGame(EASY);
+    game = setSelection(game, [2, 3, 5]);
+    game = applyMove(game, { kind: 'addNote', cell: 3, digit: 2, note: 'included' });
+
+    // Some have it, some do not: the press adds it everywhere...
+    game = toggleNoteOnSelection(game, 2, 'included');
+    for (const cell of [2, 3, 5]) expect(includedNotes(game.notes[cell]!)).toEqual([2]);
+
+    // ...and once all have it, the press clears it everywhere, in one step.
+    const before = game.history.length;
+    game = toggleNoteOnSelection(game, 2, 'included');
+    for (const cell of [2, 3, 5]) expect(includedNotes(game.notes[cell]!)).toEqual([]);
+    expect(game.history.length).toBe(before + 1);
+  });
+
+  it('ignores cells that cannot take the mark when deciding', () => {
+    let game = createGame(EASY);
+    // Cell 0 is a given; in cell 2, 5 is already placed in the row.
+    game = setSelection(game, [0, 2, 3]);
+    game = toggleNoteOnSelection(game, 5, 'excluded');
+    expect(game.notes[2]!.excluded).toEqual([]);
+    expect(game.notes[3]!.excluded).toEqual([]);
+    game = setSelection(game, [2, 3]);
+    game = toggleNoteOnSelection(game, 2, 'excluded');
+    expect(game.notes[2]!.excluded).toEqual([2]);
+    expect(game.notes[3]!.excluded).toEqual([2]);
   });
 
   it('skips givens when applying to a selection', () => {
@@ -271,11 +308,29 @@ describe('fillNotes (auto-notes)', () => {
     }
   });
 
-  it('is undoable one cell at a time', () => {
+  it('leaves no history entry when nothing would change', () => {
     const game = fillNotes(createGame(EASY));
-    const filled = game.notes.filter((n) => includedNotes(n).length > 0).length;
-    const stepped = undo(game);
-    expect(stepped.notes.filter((n) => includedNotes(n).length > 0).length).toBe(filled - 1);
+    expect(fillNotes(game)).toBe(game);
+  });
+
+  it('is undone in one step', () => {
+    const game = fillNotes(createGame(EASY));
+    expect(game.history).toHaveLength(1);
+    expect(undo(game).notes.every((n) => includedNotes(n).length === 0)).toBe(true);
+  });
+
+  it('re-adds a note the player removed, but not one they struck', () => {
+    let game = fillNotes(createGame(EASY));
+    const [removed, struck] = game.notes[BLANK]!.auto;
+    if (removed === undefined || struck === undefined) throw new Error('fixture');
+    game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: removed, note: 'included' });
+    game = applyMove(game, { kind: 'toggleNote', cell: BLANK, digit: struck, note: 'excluded' });
+    expect(includedNotes(game.notes[BLANK]!)).not.toContain(removed);
+
+    game = fillNotes(game);
+    expect(includedNotes(game.notes[BLANK]!)).toContain(removed);
+    expect(includedNotes(game.notes[BLANK]!)).not.toContain(struck);
+    expect(game.notes[BLANK]!.excluded).toContain(struck);
   });
 
   it('only fills the selection when one exists', () => {
@@ -337,31 +392,30 @@ describe('auto-clearing notes on placement', () => {
     }
   });
 
-  it('keeps a hand-written note and shows it stale instead', () => {
-    // The distinction that matters: the app tidies its own bookkeeping, but
-    // does not quietly correct the player's reasoning.
+  it('removes hand-written notes for the placed digit from peers too', () => {
+    // The candidate layer is canonical, so it must not keep a candidate that a
+    // placed digit now rules out — whoever wrote it.
     let game = createGame(EASY);
     game = applyMove(game, { kind: 'addNote', cell: 2, digit: 4, note: 'included' });
 
-    const rowPeer = [0, 1, 3, 4, 5, 6, 7, 8].find((i) => i !== 2 && game.entries[i] === null)!;
+    const rowPeer = [0, 1, 3, 4, 5, 6, 7, 8].find((i) => game.entries[i] === null);
+    if (rowPeer === undefined) throw new Error('fixture');
     game = applyMove(game, { kind: 'setValue', cell: rowPeer, digit: 4 });
 
-    expect(includedNotes(game.notes[2]!)).toContain(4);
-    expect(cellView(game, 2).staleNotes).toContain(4);
+    expect(includedNotes(game.notes[2]!)).not.toContain(4);
   });
 
-  it('treats a hand-touched auto note as the player own', () => {
-    let game = fillNotes(createGame(EASY));
-    const { cell, digit } = firstEmpty(game);
-    const peer = game.notes.findIndex((n, i) => i !== cell && includedNotes(n).includes(digit));
+  it('leaves strikes and scratch in peers alone', () => {
+    let game = createGame(EASY);
+    game = applyMove(game, { kind: 'addNote', cell: 2, digit: 4, note: 'excluded' });
+    // R1C7: no 4 in its row, column or box, so it can take the mark.
+    game = applyMove(game, { kind: 'addNote', cell: 6, digit: 4, note: 'scratch' });
+    expect(game.notes[6]!.scratch).toEqual([4]);
 
-    // Toggling it off and on again makes it a deliberate note.
-    game = applyMove(game, { kind: 'toggleNote', cell: peer, digit, note: 'included' });
-    game = applyMove(game, { kind: 'toggleNote', cell: peer, digit, note: 'included' });
-    expect(game.notes[peer]!.auto).not.toContain(digit);
+    game = applyMove(game, { kind: 'setValue', cell: 5, digit: 4 });
 
-    game = applyMove(game, { kind: 'setValue', cell, digit });
-    expect(includedNotes(game.notes[peer]!)).toContain(digit);
+    expect(game.notes[2]!.excluded).toEqual([4]);
+    expect(game.notes[6]!.scratch).toEqual([4]);
   });
 
   it('restores cleared notes on undo', () => {
