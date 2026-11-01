@@ -871,6 +871,13 @@ Newest first. Keep entries short — what changed and why it mattered.
   Uses the tutor's roles, so lessons will look the same.
 - **Showing a hint clears the selection and digit focus**, which competed with
   the hint's colours.
+- **Sticky hints.** A shown hint stays until dismissed or finished: its
+  highlights are derived from the board each render (`pendingHintDecorations`)
+  instead of stored, so acting on it no longer wipes them, and each step drops
+  off as it is made ("2 of 4 done", `hintProgress`). Once every change is made
+  it shows "Done ✓" and dismisses itself. Pressing Hint again brings the same
+  hint back into focus rather than finding a different one; tapping off the
+  board no longer dismisses it.
 
 ### 2026-11-01
 

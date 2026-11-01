@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import {
   applyMoves,
   boardView,
@@ -12,7 +12,9 @@ import {
   errorCells,
   fillNotes,
   isSolved,
+  hintProgress,
   nextHint,
+  pendingHintDecorations,
   presentHint,
   redo,
   remainingCount,
@@ -27,7 +29,8 @@ import {
   toggleNoteOnSelection,
   undo,
 } from '@tsudoku/game';
-import type { Decoration, GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
+import type { Hint } from '@tsudoku/core';
+import type { GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
 
 /**
  * The React binding for @tsudoku/game.
@@ -60,8 +63,7 @@ type Action =
   | { type: 'clearSavePoint' }
   | { type: 'reset' }
   | { type: 'fillNotes'; all?: boolean }
-  | { type: 'showHint'; decorations: readonly Decoration[] }
-  | { type: 'clearHint' };
+  | { type: 'showHint' };
 
 function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
@@ -168,36 +170,72 @@ function reducer(state: GameState, action: Action): GameState {
     // A lingering selection (and its peer shading) competes with the hint's
     // colours, so showing a hint clears it.
     case 'showHint':
-      return setSelection(setDecorations(state, action.decorations), []);
-    case 'clearHint':
-      return clearDecorations(state);
+      return setSelection(state, []);
   }
 }
+
+/** How long a finished hint stays up, showing "Done", before it dismisses. */
+const HINT_DONE_MS = 1200;
 
 export function useGame(initialPuzzle: string) {
   const [state, dispatch] = useReducer(reducer, initialPuzzle, createGame);
   const [mode, setMode] = useState<InputMode>('value');
-  const [hint, setHint] = useState<HintPresentation | null>(null);
+  /**
+   * The hint being shown, if any — sticky until the player dismisses it or has
+   * made every change it proposes.
+   *
+   * Its decorations are derived from the board on every render rather than
+   * stored in game state: moves used to clear stored decorations, so the
+   * highlights vanished the moment the player started acting on the hint.
+   * Deriving them also lets each step drop off the board as it is made.
+   */
+  const [active, setActive] = useState<{ hint: Hint; presentation: HintPresentation } | null>(null);
+  const progress = useMemo(
+    () => (active === null ? null : hintProgress(state, active.hint)),
+    [state, active],
+  );
 
-  const cells = useMemo(() => boardView(state), [state]);
+  const cells = useMemo(() => {
+    if (active === null) return boardView(state);
+    const pending = pendingHintDecorations(state, active.hint, active.presentation.decorations);
+    return boardView(setDecorations(state, pending));
+  }, [state, active]);
   const counts = useMemo(() => digitCounts(state), [state]);
   const errors = useMemo(() => errorCells(state), [state]);
   const solved = useMemo(() => isSolved(state), [state]);
   const remaining = useMemo(() => remainingCount(state), [state]);
 
   const requestHint = useCallback(() => {
-    const found = nextHint(state);
-    // Presented against the same grid the hint was found on: the player's,
-    // with their correct eliminations applied.
-    const presented = found === null ? null : presentHint(found, toPlayerGrid(state));
-    setHint(presented);
-    if (presented) dispatch({ type: 'showHint', decorations: presented.decorations });
-  }, [state]);
+    // Asking again while a hint is showing brings that hint back into focus
+    // rather than finding a new one: a fresh search could land on a different
+    // hint and abandon the one the player is half-way through.
+    if (active === null) {
+      const found = nextHint(state);
+      // Presented against the same grid the hint was found on: the player's,
+      // with their correct eliminations applied.
+      setActive(
+        found === null
+          ? null
+          : { hint: found, presentation: presentHint(found, toPlayerGrid(state)) },
+      );
+      if (found === null) return;
+    }
+    dispatch({ type: 'showHint' });
+  }, [state, active]);
 
   const dismissHint = useCallback(() => {
-    setHint(null);
-    dispatch({ type: 'clearHint' });
+    setActive(null);
   }, []);
+
+  // Once every proposed change is made the hint has done its job: show it as
+  // done for a beat, then leave hint mode. Undoing the last step inside that
+  // beat cancels the dismissal, because progress is derived from the board.
+  const complete = progress?.complete ?? false;
+  useEffect(() => {
+    if (!complete) return;
+    const timer = setTimeout(() => setActive(null), HINT_DONE_MS);
+    return () => clearTimeout(timer);
+  }, [complete]);
 
   /**
    * Switch input mode.
@@ -219,7 +257,7 @@ export function useGame(initialPuzzle: string) {
   }, []);
 
   const newGame = useCallback((puzzle: string) => {
-    setHint(null);
+    setActive(null);
     setMode('value');
     dispatch({ type: 'newGame', puzzle });
   }, []);
@@ -233,7 +271,8 @@ export function useGame(initialPuzzle: string) {
     remaining,
     mode,
     setMode: changeMode,
-    hint,
+    hint: active?.presentation ?? null,
+    hintProgress: progress,
     requestHint,
     dismissHint,
     newGame,
