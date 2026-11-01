@@ -78,8 +78,14 @@ function reducer(state: GameState, action: Action): GameState {
     // same update. Branching on the mode here was how a value-mode drag used
     // to collapse to a single cell: the action carried the mode from before
     // the switch.
+    //
+    // Filled cells are left out: a run is selected to be annotated, and a
+    // filled cell takes no notes, so selecting it only adds noise.
     case 'setSelection':
-      return setSelection(state, action.cells);
+      return setSelection(
+        state,
+        action.cells.filter((cell) => state.entries[cell] === null),
+      );
 
     case 'clearSelection':
       return selectCell(state, null);
