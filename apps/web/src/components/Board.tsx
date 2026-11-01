@@ -69,6 +69,8 @@ interface BoardProps {
   readonly onActivate: (index: number, additive: boolean) => void;
   /** The digit being scanned for, from the number pad. */
   readonly focusDigit: number | null;
+  /** Shade the selected cell's row, column and box. */
+  readonly showPeers: boolean;
 }
 
 /**
@@ -86,6 +88,7 @@ export function Board({
   onPaint,
   onActivate,
   focusDigit,
+  showPeers,
 }: BoardProps): JSX.Element {
   const { cellProps } = useDragSelect({ onTap, onDragStart, onPaint });
 
@@ -99,7 +102,7 @@ export function Board({
   const activeDigit = focusDigit ?? focusCell?.value ?? null;
 
   const isPeer = (index: number): boolean => {
-    if (focus === undefined) return false;
+    if (!showPeers || focus === undefined) return false;
     return (
       rowOf(index) === rowOf(focus) ||
       colOf(index) === colOf(focus) ||
