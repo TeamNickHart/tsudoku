@@ -312,6 +312,10 @@ export function App(): JSX.Element {
           onPaint={paintSelection}
           onActivate={activateCell}
           focusDigit={focusDigit}
+          // Row/column/box shading only helps when picking a value. In the
+          // note modes it painted over the green tint marking where the
+          // focused digit can go — exactly what the player is scanning.
+          showPeers={mode === 'value'}
         />
       </div>
 
