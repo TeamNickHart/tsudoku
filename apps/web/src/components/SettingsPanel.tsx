@@ -1,6 +1,7 @@
 import { TECHNIQUE_DIFFICULTY } from '@tsudoku/core';
 import { Button } from '@/components/ui/button';
 import { DIFFICULTY_BANDS, puzzlesInBand, solvedInBand } from '@/lib/difficulty';
+import type { AutoSolveScope } from '@tsudoku/game';
 import type { Settings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ interface SettingsPanelProps {
   readonly onToggleAutoSolve: (technique: string) => void;
   readonly onSetAutoNotes: (enabled: boolean) => void;
   readonly onClose: () => void;
+  readonly onSetAutoSolveScope: (scope: AutoSolveScope) => void;
   /** Debug: wipe everything the app has saved in this browser. */
   readonly onClearSavedData: () => void;
 }
@@ -35,6 +37,13 @@ interface SettingsPanelProps {
  */
 const AUTO_SOLVE_TECHNIQUES: readonly string[] = ['NakedSingle', 'HiddenSingle'];
 
+/** How far one placement's auto-solving reaches, narrowest first. */
+const SCOPE_OPTIONS: readonly { id: AutoSolveScope; label: string; detail: string }[] = [
+  { id: 'box', label: 'Same box', detail: 'Only the box you just placed in.' },
+  { id: 'lines', label: 'Box, row and column', detail: 'Also the row and column you placed in.' },
+  { id: 'board', label: 'Everywhere', detail: 'The whole board — often finishes easy puzzles.' },
+];
+
 const TECHNIQUE_LABELS: Record<string, string> = {
   NakedSingle: 'Naked singles',
   HiddenSingle: 'Hidden singles',
@@ -47,6 +56,7 @@ export function SettingsPanel({
   onToggleAutoSolve,
   onSetAutoNotes,
   onClose,
+  onSetAutoSolveScope,
   onClearSavedData,
 }: SettingsPanelProps): JSX.Element {
   return (
@@ -139,9 +149,38 @@ export function SettingsPanel({
             </label>
           ))}
         </div>
+        {settings.autoSolve.includes('NakedSingle') && (
+          <div className="mt-3">
+            <p className="text-xs text-muted-foreground">
+              After you place a value, cells left with one candidate are filled — reading your notes
+              and strikes, so wrong marks give wrong fills. Undo takes back the placement and its
+              fills together. How far it reaches:
+            </p>
+            <div
+              className="mt-2 flex flex-col gap-1"
+              role="radiogroup"
+              aria-label="Auto-solve reach"
+            >
+              {SCOPE_OPTIONS.map((option) => (
+                <label key={option.id} className="flex items-start gap-2 py-1">
+                  <input
+                    type="radio"
+                    name="auto-solve-scope"
+                    checked={settings.autoSolveScope === option.id}
+                    onChange={() => onSetAutoSolveScope(option.id)}
+                    className="mt-0.5 h-4 w-4"
+                  />
+                  <span>
+                    <span>{option.label}</span>
+                    <span className="block text-xs text-muted-foreground">{option.detail}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="mt-2 text-xs text-muted-foreground">
-          Not wired up yet — this records the preference so the setting is here when the behaviour
-          lands.
+          Hidden singles are not wired up yet — that setting is recorded for when they are.
         </p>
       </fieldset>
 

@@ -48,6 +48,8 @@ interface CellProps {
   readonly view: CellView;
   /** True when this cell shares a row, column or box with the selection. */
   readonly isPeer: boolean;
+  /** True for a moment after auto-solve fills this cell. */
+  readonly justFilled: boolean;
   /** True when this cell holds the same digit as the selected cell. */
   readonly isSameDigit: boolean;
   /** The digit being scanned for, so notes for it can be picked out. */
@@ -61,6 +63,7 @@ interface CellProps {
 export function Cell({
   view,
   isPeer,
+  justFilled,
   isSameDigit,
   focusDigit,
   onPointerDown,
@@ -126,6 +129,8 @@ export function Cell({
         isPeer && !isSelected && !isSameDigit && 'bg-board-peer/30',
         isSelected && 'bg-board-selected/20 ring-2 ring-inset ring-board-selected',
         ...roles.map((r) => ROLE_STYLES[r]),
+        // Auto-solve's fills flash once, so the player sees what the app did.
+        justFilled && 'animate-autofill',
         'hover:bg-board-peer/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >

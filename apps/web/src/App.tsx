@@ -22,7 +22,7 @@ const MODE_LABELS: Record<InputMode, string> = {
 };
 
 export function App(): JSX.Element {
-  const { settings, setBand, toggleAutoSolve, setAutoNotes } = useSettings();
+  const { settings, setBand, toggleAutoSolve, setAutoSolveScope, setAutoNotes } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
 
   // The first puzzle is drawn once, on mount. A lazy initialiser rather than a
@@ -116,9 +116,10 @@ export function App(): JSX.Element {
       // how that view is dismissed.
       const entering = state.selected.length > 0;
       setFocusDigit((current) => (entering || current !== digit ? digit : null));
-      game.dispatch({ type: 'digit', digit, mode });
+      const autoSolve = settings.autoSolve.includes('NakedSingle') ? settings.autoSolveScope : null;
+      game.dispatch({ type: 'digit', digit, mode, autoSolve });
     },
-    [game, mode, state.selected.length],
+    [game, mode, state.selected.length, settings.autoSolve, settings.autoSolveScope],
   );
 
   /**
@@ -312,6 +313,7 @@ export function App(): JSX.Element {
           onPaint={paintSelection}
           onActivate={activateCell}
           focusDigit={focusDigit}
+          autoFilled={game.autoFilled}
           // Row/column/box shading only helps when picking a value. In the
           // note modes it painted over the green tint marking where the
           // focused digit can go — exactly what the player is scanning.
@@ -476,6 +478,7 @@ export function App(): JSX.Element {
               game.newGame(next.puzzle);
             }}
             onToggleAutoSolve={toggleAutoSolve}
+            onSetAutoSolveScope={setAutoSolveScope}
             onSetAutoNotes={setAutoNotes}
             onClose={() => setShowSettings(false)}
             onClearSavedData={() => {

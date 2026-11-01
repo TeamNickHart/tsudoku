@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { AutoSolveScope } from '@tsudoku/game';
 import { DIFFICULTY_BANDS } from './difficulty';
 
 /**
@@ -31,6 +32,8 @@ export interface Settings {
   readonly bandId: string;
   /** Technique names the player has enabled auto-solve for. */
   readonly autoSolve: readonly string[];
+  /** How far one placement's auto-solving reaches (see AutoSolveScope). */
+  readonly autoSolveScope: AutoSolveScope;
   /** Fill notes from the engine's candidates as the board changes. */
   readonly autoNotes: boolean;
 }
@@ -39,8 +42,11 @@ export const DEFAULT_SETTINGS: Settings = {
   version: 1,
   bandId: DIFFICULTY_BANDS[0]!.id,
   autoSolve: [],
+  autoSolveScope: 'box',
   autoNotes: false,
 };
+
+const AUTO_SOLVE_SCOPES: readonly AutoSolveScope[] = ['box', 'lines', 'board'];
 
 /**
  * Read settings, falling back to defaults on anything unexpected.
@@ -70,10 +76,16 @@ function load(): Settings {
       ? record['autoSolve'].filter((t): t is string => typeof t === 'string')
       : [];
 
+    // Added after version 1 shipped, so older saves simply lack it.
+    const scope = record['autoSolveScope'];
+    const autoSolveScope =
+      AUTO_SOLVE_SCOPES.find((s) => s === scope) ?? DEFAULT_SETTINGS.autoSolveScope;
+
     return {
       version: 1,
       bandId,
       autoSolve,
+      autoSolveScope,
       autoNotes: record['autoNotes'] === true,
     };
   } catch {
@@ -94,6 +106,7 @@ export interface UseSettings {
   readonly settings: Settings;
   readonly setBand: (bandId: string) => void;
   readonly toggleAutoSolve: (technique: string) => void;
+  readonly setAutoSolveScope: (scope: AutoSolveScope) => void;
   readonly setAutoNotes: (enabled: boolean) => void;
 }
 
@@ -120,9 +133,13 @@ export function useSettings(): UseSettings {
     }));
   }, []);
 
+  const setAutoSolveScope = useCallback((autoSolveScope: AutoSolveScope) => {
+    setSettings((s) => ({ ...s, autoSolveScope }));
+  }, []);
+
   const setAutoNotes = useCallback((enabled: boolean) => {
     setSettings((s) => ({ ...s, autoNotes: enabled }));
   }, []);
 
-  return { settings, setBand, toggleAutoSolve, setAutoNotes };
+  return { settings, setBand, toggleAutoSolve, setAutoSolveScope, setAutoNotes };
 }

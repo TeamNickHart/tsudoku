@@ -68,6 +68,9 @@ export {
 } from './hints.js';
 export type { HintProgress } from './hints.js';
 
+export { markedCandidates, placeWithAutoSolve } from './autoSolve.js';
+export type { AutoSolveScope } from './autoSolve.js';
+
 export { presentHint } from './hintPresentation.js';
 export type { HintPresentation, HintSegment } from './hintPresentation.js';
 
