@@ -60,9 +60,13 @@ export {
   applyHintAsMove,
   hintDecorations,
   hintHighlights,
+  hintProgress,
+  isRuledOut,
   nextHint,
+  pendingHintDecorations,
   toPlayerGrid,
 } from './hints.js';
+export type { HintProgress } from './hints.js';
 
 export { presentHint } from './hintPresentation.js';
 export type { HintPresentation, HintSegment } from './hintPresentation.js';

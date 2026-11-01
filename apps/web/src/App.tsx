@@ -171,19 +171,21 @@ export function App(): JSX.Element {
   );
 
   /**
-   * Back to a clean slate: no selection, no focused digit, no hint, value mode.
+   * Back to a clean slate: no selection, no focused digit, value mode.
    *
    * Entering notes and strikes never clears the selection on its own — the
    * player builds a selection and may work several digits across it. Clearing
    * is always an explicit act: tapping off the board (or Escape).
+   *
+   * A shown hint is deliberately left alone: it is sticky, ending only when
+   * dismissed or when every change it proposes has been made.
    */
-  const { dispatch, dismissHint } = game;
+  const { dispatch } = game;
   const resetView = useCallback(() => {
     dispatch({ type: 'clearSelection' });
     setFocusDigit(null);
     setMode('value');
-    dismissHint();
-  }, [dispatch, setMode, dismissHint]);
+  }, [dispatch, setMode]);
 
   // A tap anywhere that is not the board or a control resets the view.
   // Controls are matched structurally rather than listed, so a new button
@@ -437,6 +439,7 @@ export function App(): JSX.Element {
             size="sm"
             onClick={() => {
               game.dispatch({ type: 'reset' });
+              game.dismissHint();
               if (settings.autoNotes) game.dispatch({ type: 'fillNotes', all: true });
             }}
           >
@@ -489,7 +492,19 @@ export function App(): JSX.Element {
           <div data-keep-selection className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-medium">{hint.title}</p>
+                <p className="font-medium">
+                  {hint.title}
+                  {game.hintProgress !== null &&
+                    (game.hintProgress.complete ? (
+                      <span className="ml-2 text-board-primary">Done ✓</span>
+                    ) : (
+                      game.hintProgress.total > 1 && (
+                        <span className="ml-2 text-xs font-normal tabular-nums text-muted-foreground">
+                          {game.hintProgress.done} of {game.hintProgress.total} done
+                        </span>
+                      )
+                    ))}
+                </p>
                 <div className="mt-1">
                   <HintSentence segments={hint.sentence} />
                 </div>

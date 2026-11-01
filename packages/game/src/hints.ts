@@ -24,18 +24,82 @@ import type { Decoration, GameState } from './types.js';
 export function toPlayerGrid(state: GameState): Grid {
   const eliminations: { cell: number; digit: number }[] = [];
   for (let cell = 0; cell < CELL_COUNT; cell++) {
-    const notes = state.notes[cell];
-    if (state.entries[cell] !== null || notes === undefined) continue;
+    if (state.entries[cell] !== null) continue;
     const answer = Number(state.solution[cell]);
-    const noted = includedNotes(notes);
     for (let digit = 1; digit <= SIZE; digit++) {
-      if (digit === answer) continue;
-      const struck = notes.excluded.includes(digit);
-      const leftOut = noted.length > 0 && !noted.includes(digit);
-      if (struck || leftOut) eliminations.push({ cell, digit });
+      if (digit !== answer && isRuledOut(state, cell, digit)) eliminations.push({ cell, digit });
     }
   }
   return removeCandidates(toGrid(state), eliminations);
+}
+
+/**
+ * Whether the player has ruled `digit` out of an empty cell: struck it, or —
+ * in a cell where they have noted candidates — left it out. The candidate
+ * layer's own rule (see CellNotes).
+ */
+export function isRuledOut(state: GameState, cell: number, digit: number): boolean {
+  const notes = state.notes[cell];
+  if (notes === undefined) return false;
+  if (notes.excluded.includes(digit)) return true;
+  const noted = includedNotes(notes);
+  return noted.length > 0 && !noted.includes(digit);
+}
+
+/** How far the player has got with what a hint proposes. */
+export interface HintProgress {
+  /** Steps the player has made. */
+  readonly done: number;
+  /** Steps the hint proposes: its eliminations, or its one placement. */
+  readonly total: number;
+  /** Every step made — the hint has nothing left to show. */
+  readonly complete: boolean;
+}
+
+/**
+ * Whether one step of a hint has been made. An elimination is made once the
+ * player has ruled the digit out (or the cell has been filled, which settles
+ * it either way); a placement once its cell is filled.
+ */
+function stepDone(state: GameState, cell: number, digit: number | null): boolean {
+  if (state.entries[cell] !== null) return true;
+  return digit !== null && isRuledOut(state, cell, digit);
+}
+
+/**
+ * Track a hint against the board as the player acts on it. Derived from the
+ * board every time, so undoing a step un-does its progress too.
+ */
+export function hintProgress(state: GameState, hint: Hint): HintProgress {
+  const steps =
+    hint.type === 'direct'
+      ? [stepDone(state, hint.cell, null)]
+      : hint.eliminations.map((e) => stepDone(state, e.cell, e.digit));
+  const done = steps.filter(Boolean).length;
+  return { done, total: steps.length, complete: done === steps.length };
+}
+
+/**
+ * A hint's decorations with the steps already made taken out, so what is left
+ * on the board is exactly what is left to do. The pattern stays: it is the
+ * reason, and still worth seeing until the hint is finished.
+ */
+export function pendingHintDecorations(
+  state: GameState,
+  hint: Hint,
+  decorations: readonly Decoration[],
+): readonly Decoration[] {
+  if (hint.type === 'direct') {
+    return stepDone(state, hint.cell, null) ? [] : decorations;
+  }
+  return decorations.filter(
+    (d) =>
+      !(
+        d.role === 'eliminated' &&
+        d.target.kind === 'note' &&
+        stepDone(state, d.target.cell, d.target.digit)
+      ),
+  );
 }
 
 /**

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  undo,
+  presentHint,
+  pendingHintDecorations,
+  hintProgress,
   applyHintAsMove,
   applyMove,
   createGame,
@@ -171,5 +175,86 @@ describe('hints respect what the player has already worked out', () => {
       const answer = Number(game.solution[cell]);
       expect(grid.getCellByIndex(cell).candidateList).toContain(answer);
     }
+  });
+});
+
+describe('hint progress', () => {
+  const POINTING =
+    '............42...9.7...38.4.852...9.19..5..48.4...836.5.38...2.7...34............';
+
+  function toFirstElimination(): { game: GameState; hint: EliminationHint } {
+    let game = createGame(POINTING);
+    for (let i = 0; i < 81; i++) {
+      const hint = nextHint(game);
+      if (hint === null) break;
+      if (hint.type === 'elimination') return { game, hint };
+      game = applyHintAsMove(game, hint);
+    }
+    throw new Error('fixture never reached an elimination');
+  }
+
+  const strike = (game: GameState, cell: number, digit: number): GameState =>
+    applyMove(game, { kind: 'addNote', cell, digit, note: 'excluded' });
+
+  it('counts each elimination as the player makes it, and undo takes it back', () => {
+    const { game, hint } = toFirstElimination();
+    expect(hintProgress(game, hint)).toEqual({ done: 0, total: 2, complete: false });
+
+    const [first, second] = hint.eliminations;
+    if (first === undefined || second === undefined) throw new Error('fixture');
+    const one = strike(game, first.cell, first.digit);
+    expect(hintProgress(one, hint)).toEqual({ done: 1, total: 2, complete: false });
+
+    const both = strike(one, second.cell, second.digit);
+    expect(hintProgress(both, hint).complete).toBe(true);
+    expect(hintProgress(undo(both), hint).done).toBe(1);
+  });
+
+  it('counts un-noting a candidate the same as striking it', () => {
+    const { game, hint } = toFirstElimination();
+    let played = fillNotes(game);
+    for (const { cell, digit } of hint.eliminations) {
+      played = applyMove(played, { kind: 'removeNote', cell, digit, note: 'included' });
+    }
+    expect(hintProgress(played, hint).complete).toBe(true);
+  });
+
+  it('leaves only the steps still to do on the board', () => {
+    const { game, hint } = toFirstElimination();
+    const { decorations } = presentHint(hint, toPlayerGrid(game));
+    const [first] = hint.eliminations;
+    if (first === undefined) throw new Error('fixture');
+    const pending = pendingHintDecorations(
+      strike(game, first.cell, first.digit),
+      hint,
+      decorations,
+    );
+
+    const eliminated = pending.filter((d) => d.role === 'eliminated');
+    expect(eliminated).toHaveLength(hint.eliminations.length - 1);
+    expect(
+      eliminated.some(
+        (d) =>
+          d.target.kind === 'note' &&
+          d.target.cell === first.cell &&
+          d.target.digit === first.digit,
+      ),
+    ).toBe(false);
+    // The pattern stays until the hint is finished.
+    expect(pending.filter((d) => d.role === 'supporting')).toEqual(
+      decorations.filter((d) => d.role === 'supporting'),
+    );
+  });
+
+  it('completes a placement hint once its cell is filled', () => {
+    const game = createGame(EASY);
+    const hint = nextHint(game);
+    if (hint === null || hint.type !== 'direct') throw new Error('fixture');
+    expect(hintProgress(game, hint)).toEqual({ done: 0, total: 1, complete: false });
+    const placed = applyHintAsMove(game, hint);
+    expect(hintProgress(placed, hint).complete).toBe(true);
+    expect(
+      pendingHintDecorations(placed, hint, presentHint(hint, toPlayerGrid(game)).decorations),
+    ).toEqual([]);
   });
 });
