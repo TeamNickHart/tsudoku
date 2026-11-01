@@ -868,6 +868,12 @@ Newest first. Keep entries short — what changed and why it mattered.
   one entry per player action.
 - **Scratch marks** — a third, independent layer for trying an idea out,
   drawn bold blue, untouched by auto-notes. Rules in 2.5.
+- **Save point.** One at a time: set it, try an idea, and _Return to save
+  point_ puts values and every kind of mark back exactly as they were; _Clear
+  save point_ keeps what you did. It is a `historyIndex` bookmark, so returning
+  is an ordinary history move — the save point survives it and redo can bring
+  the attempt back. Acting after undoing past the save point drops it, since
+  the history it pointed into is gone.
 
 ### 2026-10-17 (#43, #44)
 

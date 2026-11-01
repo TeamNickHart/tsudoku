@@ -125,6 +125,7 @@ export function createGame(puzzle: string): GameState {
     ...blankBoard(puzzle),
     history: [],
     historyIndex: 0,
+    savePoint: null,
     selected: [],
     decorations: [],
   };
@@ -370,7 +371,11 @@ export function applyMoves(state: GameState, moves: readonly Move[]): GameState 
 
   const entry: HistoryEntry = applied;
   const history = [...state.history.slice(0, state.historyIndex), entry];
-  return { ...current, history, historyIndex: history.length };
+  // Acting after undoing past the save point discards the history it pointed
+  // into, so there is no longer a board to return to.
+  const savePoint =
+    state.savePoint !== null && state.savePoint > state.historyIndex ? null : state.savePoint;
+  return { ...current, history, historyIndex: history.length, savePoint };
 }
 
 /** Apply one move as its own player action. */
@@ -484,6 +489,36 @@ function replay(state: GameState, count: number): GameState {
   };
 }
 
+/** Set the save point at the board as it is now, replacing any earlier one. */
+export function setSavePoint(state: GameState): GameState {
+  return state.savePoint === state.historyIndex
+    ? state
+    : { ...state, savePoint: state.historyIndex };
+}
+
+/** Forget the save point — the player is satisfied with what they did since. */
+export function clearSavePoint(state: GameState): GameState {
+  return state.savePoint === null ? state : { ...state, savePoint: null };
+}
+
+/** Whether returning to the save point would change the board. */
+export function canRestoreSavePoint(state: GameState): boolean {
+  return state.savePoint !== null && state.savePoint !== state.historyIndex;
+}
+
+/**
+ * Put the board back exactly as it was when the save point was set — values
+ * and every kind of mark.
+ *
+ * Works like undoing back to that moment: the save point stays, so the player
+ * can try something else from the same place, and redo can still bring the
+ * abandoned attempt back until a new action replaces it.
+ */
+export function restoreSavePoint(state: GameState): GameState {
+  if (state.savePoint === null || !canRestoreSavePoint(state)) return state;
+  return replay(state, state.savePoint);
+}
+
 /** Clear all progress, keeping the puzzle. History is discarded. */
 export function resetGame(state: GameState): GameState {
   return {
@@ -491,6 +526,7 @@ export function resetGame(state: GameState): GameState {
     ...blankBoard(state.puzzle),
     history: [],
     historyIndex: 0,
+    savePoint: null,
     decorations: [],
   };
 }
