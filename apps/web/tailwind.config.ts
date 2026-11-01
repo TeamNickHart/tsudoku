@@ -52,6 +52,8 @@ export default {
           primary: 'hsl(var(--board-primary))',
           supporting: 'hsl(var(--board-supporting))',
           eliminated: 'hsl(var(--board-eliminated))',
+          pivot: 'hsl(var(--board-pivot))',
+          house: 'hsl(var(--board-house))',
         },
       },
       borderRadius: {

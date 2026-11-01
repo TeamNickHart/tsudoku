@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SIZE } from '@tsudoku/core';
 import { isDigitPlacedInPeer } from '@tsudoku/game';
 import { Board } from '@/components/Board';
+import { HintSentence } from '@/components/HintSentence';
 import { NumberPad } from '@/components/NumberPad';
 import { Button } from '@/components/ui/button';
 import { useGame } from '@/lib/useGame';
@@ -418,7 +419,17 @@ export function App(): JSX.Element {
           >
             Auto-notes
           </Button>
-          <Button variant="outline" size="sm" onClick={game.requestHint}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Clear the digit focus as well as the selection (the game layer
+              // clears that): both tint cells, and would compete with the
+              // hint's colours.
+              setFocusDigit(null);
+              game.requestHint();
+            }}
+          >
             Hint
           </Button>
           <Button
@@ -472,15 +483,16 @@ export function App(): JSX.Element {
           />
         )}
 
+        {/* Neutral on purpose: green means "the cell to fill" on the board,
+            and the chips in the sentence need a quiet background to read. */}
         {hint && (
-          <div
-            data-keep-selection
-            className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm"
-          >
+          <div data-keep-selection className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-medium">{hint.technique}</p>
-                <p className="mt-1 text-muted-foreground">{hint.explanation}</p>
+                <p className="font-medium">{hint.title}</p>
+                <div className="mt-1">
+                  <HintSentence segments={hint.sentence} />
+                </div>
               </div>
               <Button variant="ghost" size="sm" onClick={game.dismissHint}>
                 Dismiss

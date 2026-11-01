@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useReducer, useState } from 'react';
-import type { Hint } from '@tsudoku/core';
 import {
   applyMoves,
   boardView,
@@ -12,9 +11,9 @@ import {
   digitCounts,
   errorCells,
   fillNotes,
-  hintDecorations,
   isSolved,
   nextHint,
+  presentHint,
   redo,
   remainingCount,
   resetGame,
@@ -24,10 +23,11 @@ import {
   setSavePoint,
   setSelection,
   toggleCellSelection,
+  toPlayerGrid,
   toggleNoteOnSelection,
   undo,
 } from '@tsudoku/game';
-import type { GameState, Move, NoteKind } from '@tsudoku/game';
+import type { Decoration, GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
 
 /**
  * The React binding for @tsudoku/game.
@@ -60,7 +60,7 @@ type Action =
   | { type: 'clearSavePoint' }
   | { type: 'reset' }
   | { type: 'fillNotes'; all?: boolean }
-  | { type: 'showHint'; hint: Hint }
+  | { type: 'showHint'; decorations: readonly Decoration[] }
   | { type: 'clearHint' };
 
 function reducer(state: GameState, action: Action): GameState {
@@ -165,8 +165,10 @@ function reducer(state: GameState, action: Action): GameState {
     case 'reset':
       return resetGame(state);
 
+    // A lingering selection (and its peer shading) competes with the hint's
+    // colours, so showing a hint clears it.
     case 'showHint':
-      return setDecorations(state, hintDecorations(action.hint));
+      return setSelection(setDecorations(state, action.decorations), []);
     case 'clearHint':
       return clearDecorations(state);
   }
@@ -175,7 +177,7 @@ function reducer(state: GameState, action: Action): GameState {
 export function useGame(initialPuzzle: string) {
   const [state, dispatch] = useReducer(reducer, initialPuzzle, createGame);
   const [mode, setMode] = useState<InputMode>('value');
-  const [hint, setHint] = useState<Hint | null>(null);
+  const [hint, setHint] = useState<HintPresentation | null>(null);
 
   const cells = useMemo(() => boardView(state), [state]);
   const counts = useMemo(() => digitCounts(state), [state]);
@@ -185,8 +187,11 @@ export function useGame(initialPuzzle: string) {
 
   const requestHint = useCallback(() => {
     const found = nextHint(state);
-    setHint(found);
-    if (found) dispatch({ type: 'showHint', hint: found });
+    // Presented against the same grid the hint was found on: the player's,
+    // with their correct eliminations applied.
+    const presented = found === null ? null : presentHint(found, toPlayerGrid(state));
+    setHint(presented);
+    if (presented) dispatch({ type: 'showHint', decorations: presented.decorations });
   }, [state]);
 
   const dismissHint = useCallback(() => {

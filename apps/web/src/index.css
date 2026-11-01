@@ -56,10 +56,15 @@
     --board-selected: 217 91% 60%;
     --board-peer: 214 95% 93%;
 
-    /* Board: decoration roles from hints and tutorials */
+    /* Board: decoration roles from hints and tutorials. Hue and shape both
+       carry the role (see Cell's NOTE_ROLE_STYLES): green placement, amber
+       pattern, orange (dashed) eliminations, violet pivot, a cool tint for the
+       house the reasoning happens in. */
     --board-primary: 142 71% 45%;
-    --board-supporting: 48 96% 53%;
-    --board-eliminated: 0 72% 51%;
+    --board-supporting: 38 92% 50%;
+    --board-eliminated: 21 90% 48%;
+    --board-pivot: 262 83% 58%;
+    --board-house: 215 35% 92%;
 
     --radius: 0.5rem;
   }
@@ -96,8 +101,10 @@
     --board-peer: 217 33% 24%;
 
     --board-primary: 142 69% 58%;
-    --board-supporting: 48 96% 60%;
-    --board-eliminated: 0 84% 60%;
+    --board-supporting: 38 92% 58%;
+    --board-eliminated: 21 90% 60%;
+    --board-pivot: 262 83% 70%;
+    --board-house: 217 33% 20%;
   }
 
   * {
