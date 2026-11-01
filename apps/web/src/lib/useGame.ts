@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   applyMoves,
   boardView,
@@ -15,6 +15,7 @@ import {
   hintProgress,
   nextHint,
   pendingHintDecorations,
+  placeWithAutoSolve,
   presentHint,
   redo,
   remainingCount,
@@ -30,7 +31,7 @@ import {
   undo,
 } from '@tsudoku/game';
 import type { Hint } from '@tsudoku/core';
-import type { GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
+import type { AutoSolveScope, GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
 
 /**
  * The React binding for @tsudoku/game.
@@ -54,7 +55,8 @@ type Action =
   | { type: 'select'; cell: number; additive: boolean; mode: InputMode }
   | { type: 'setSelection'; cells: readonly number[] }
   | { type: 'clearSelection' }
-  | { type: 'digit'; digit: number; mode: InputMode }
+  /** `autoSolve` is how far a value placement auto-solves, or null when off. */
+  | { type: 'digit'; digit: number; mode: InputMode; autoSolve: AutoSolveScope | null }
   | { type: 'erase' }
   | { type: 'undo' }
   | { type: 'redo' }
@@ -109,7 +111,10 @@ function reducer(state: GameState, action: Action): GameState {
         const cell = state.selected[state.selected.length - 1];
         if (cell === undefined) return state;
 
-        const placed = applyMoves(cleared, [{ kind: 'setValue', cell, digit: action.digit }]);
+        const placed =
+          action.autoSolve === null
+            ? applyMoves(cleared, [{ kind: 'setValue', cell, digit: action.digit }])
+            : placeWithAutoSolve(cleared, cell, action.digit, action.autoSolve).state;
         // Nothing happened — the cell was locked or the move was rejected — so
         // leave the selection alone rather than clearing it for no reason.
         if (placed === cleared) return placed;
@@ -174,6 +179,9 @@ function reducer(state: GameState, action: Action): GameState {
   }
 }
 
+/** How long auto-filled cells are pointed out after a placement. */
+const AUTO_FILL_FLASH_MS = 1000;
+
 /** How long a finished hint stays up, showing "Done", before it dismisses. */
 const HINT_DONE_MS = 1200;
 
@@ -227,6 +235,27 @@ export function useGame(initialPuzzle: string) {
     setActive(null);
   }, []);
 
+  // Cells the latest placement filled by auto-solve, so the board can point
+  // them out for a moment rather than have digits appear unexplained. Only a
+  // *new* action counts — not undo or redo, which replay entries the player
+  // has already seen. Those keep the same history array; a new action always
+  // makes a new one (its length can stay the same when it replaces a redo
+  // tail, so length is not the signal). The extra placements in the newest
+  // entry are the fills.
+  const [autoFilled, setAutoFilled] = useState<readonly number[]>([]);
+  const seenHistory = useRef(state.history);
+  useEffect(() => {
+    const isNew = state.history !== seenHistory.current;
+    seenHistory.current = state.history;
+    const entry = state.history[state.historyIndex - 1];
+    if (!isNew || entry === undefined || state.historyIndex !== state.history.length) return;
+    const fills = entry.slice(1).flatMap((move) => (move.kind === 'setValue' ? [move.cell] : []));
+    if (fills.length === 0) return;
+    setAutoFilled(fills);
+    const timer = setTimeout(() => setAutoFilled([]), AUTO_FILL_FLASH_MS);
+    return () => clearTimeout(timer);
+  }, [state.history, state.historyIndex]);
+
   // Once every proposed change is made the hint has done its job: show it as
   // done for a beat, then leave hint mode. Undoing the last step inside that
   // beat cancels the dismissal, because progress is derived from the board.
@@ -271,6 +300,7 @@ export function useGame(initialPuzzle: string) {
     remaining,
     mode,
     setMode: changeMode,
+    autoFilled,
     hint: active?.presentation ?? null,
     hintProgress: progress,
     requestHint,

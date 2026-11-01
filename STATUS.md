@@ -35,13 +35,13 @@ next real piece of work.
   unlocks cloud saves, leaderboards and server-side chain techniques, and it
   also means hosting, cost and an attack surface the current static SPA does
   not have. (Solved history is per-browser localStorage for now.)
-- **Auto-solving "obvious" techniques.** The per-technique preference exists
-  in Settings and is saved, but **does nothing yet**. Deferred because the
-  scope decision is not obvious — measured, a single placement cascades **~35
-  naked singles on HiddenSingle puzzles** (i.e. it solves the board) but only
-  **~4 on DirectHiddenPair puzzles**. So the same feature is "a convenience" or
-  "the app played your game" depending on the puzzle. Worth deciding what
-  cascade depth is wanted before building.
+- **How far auto-solve should reach.** Naked singles now auto-solve, with the
+  reach left configurable for play-testing (box / box, row and column /
+  board; default box). The question was never whether but how far: a single
+  placement cascades **~35 naked singles on HiddenSingle puzzles** (it solves
+  the board) but only **~4 on DirectHiddenPair puzzles**, so the same feature
+  is "a convenience" or "the app played your game" depending on the puzzle.
+  Play-testing should settle the default.
 - ~~**Whether a filled cell should lock** once entered.~~ **Decided: it locks
   fully.** A placed digit cannot be overwritten or erased; undo is the only way
   back, and it rewinds the moves made since. `CellLock` gained a `placed`
@@ -827,7 +827,8 @@ An AI layer on top is optional polish.
   rendering a lesson stepper would reuse.
 - **Dark mode is unreachable.** The board's dark tokens are defined, but
   nothing ever applies the `.dark` class, so the app is light-only.
-- **Auto-solve preferences do nothing yet.** Saved, not acted on.
+- **Auto-solve covers naked singles only.** The hidden-singles preference is
+  saved but not acted on.
 - **Size-4 techniques are unvalidated** — `NakedQuad`, `Jellyfish` and
   `HiddenQuad` are implemented but unregistered, with no Phase 3 corpus.
 - **Saved data is per origin.** Settings and solved history live in
@@ -858,6 +859,18 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-11-03
+
+- **Auto-solve for naked singles** (`placeWithAutoSolve`). With it on, placing
+  a value fills cells left with one candidate, chaining within a configurable
+  reach: the placed cell's box (default), its box, row and column, or the
+  whole board. It reads only the player's marks — values, strikes, notes — and
+  never the solution, so wrong marks give wrong fills and eventually a cell
+  with no candidates, left empty for the player to undo. (Hints differ on
+  purpose: they pass on only correct eliminations.) The placement and its
+  fills are one undo step, and fills flash once. Hidden singles are still not
+  wired up.
 
 ### 2026-11-02
 

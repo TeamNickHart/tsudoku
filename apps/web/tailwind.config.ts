@@ -5,6 +5,15 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      keyframes: {
+        autofill: {
+          '0%': { backgroundColor: 'hsl(var(--board-primary) / 0.35)' },
+          '100%': { backgroundColor: 'transparent' },
+        },
+      },
+      animation: {
+        autofill: 'autofill 1s ease-out',
+      },
       screens: {
         // Landscape with room for two columns: tablets, and phones on their
         // side. Board on the left, controls on the right (see App).

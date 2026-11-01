@@ -71,6 +71,8 @@ interface BoardProps {
   readonly focusDigit: number | null;
   /** Shade the selected cell's row, column and box. */
   readonly showPeers: boolean;
+  /** Cells auto-solve just filled, to point out for a moment. */
+  readonly autoFilled: readonly number[];
 }
 
 /**
@@ -89,6 +91,7 @@ export function Board({
   onActivate,
   focusDigit,
   showPeers,
+  autoFilled,
 }: BoardProps): JSX.Element {
   const { cellProps } = useDragSelect({ onTap, onDragStart, onPaint });
 
@@ -123,6 +126,7 @@ export function Board({
           key={view.index}
           view={view}
           isPeer={isPeer(view.index)}
+          justFilled={autoFilled.includes(view.index)}
           isSameDigit={activeDigit !== null && view.value === activeDigit}
           focusDigit={focusDigit}
           onActivate={onActivate}
