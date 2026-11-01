@@ -64,5 +64,8 @@ export {
   toPlayerGrid,
 } from './hints.js';
 
+export { presentHint } from './hintPresentation.js';
+export type { HintPresentation, HintSegment } from './hintPresentation.js';
+
 export { explain, explainOrSummarise, explainHiddenSingle, hasLesson } from './tutor/index.js';
 export type { Lesson, LessonStep } from './tutor/index.js';

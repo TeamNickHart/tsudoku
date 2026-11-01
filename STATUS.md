@@ -823,7 +823,8 @@ An AI layer on top is optional polish.
 ## Known Issues
 
 - **The tutor has no UI.** `@tsudoku/game` builds verified lessons, but
-  `apps/web` never shows them. See 2.4t.
+  `apps/web` never shows them. See 2.4t. Hint highlighting (2026-11-02) is the
+  rendering a lesson stepper would reuse.
 - **Dark mode is unreachable.** The board's dark tokens are defined, but
   nothing ever applies the `.dark` class, so the app is light-only.
 - **Auto-solve preferences do nothing yet.** Saved, not acted on.
@@ -857,6 +858,19 @@ An AI layer on top is optional polish.
 ## Recent Progress
 
 Newest first. Keep entries short — what changed and why it mattered.
+
+### 2026-11-02
+
+- **Hint highlighting.** `presentHint` (`@tsudoku/game`) turns a hint into
+  coloured groups and a sentence that points at them, replacing coordinates
+  like "R8C3": green for a placement, amber for the pattern, dashed orange for
+  candidates removed, violet for a wing's pivot, and a tint on the house where
+  the reasoning happens. Candidates are boxed inside their cell, and drawn
+  faintly even where the player never wrote the note. All fifteen techniques
+  in play have their own sentence; anything else falls back to the engine's.
+  Uses the tutor's roles, so lessons will look the same.
+- **Showing a hint clears the selection and digit focus**, which competed with
+  the hint's colours.
 
 ### 2026-11-01
 

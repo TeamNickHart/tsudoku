@@ -18,8 +18,11 @@ import { cn } from '@/lib/utils';
 /** Semantic role -> ring/background. Roles never name colors; this does. */
 const ROLE_STYLES: Record<DecorationRole, string> = {
   primary: 'ring-2 ring-inset ring-board-primary bg-board-primary/10',
-  supporting: 'ring-1 ring-inset ring-board-supporting bg-board-supporting/10',
+  supporting: 'ring-2 ring-inset ring-board-supporting bg-board-supporting/15',
+  // Eliminations are marked on the note itself (below), not the whole cell.
   eliminated: '',
+  pivot: 'ring-2 ring-inset ring-board-pivot bg-board-pivot/10',
+  house: 'bg-board-house',
   error: 'bg-board-error/10',
   stale: '',
   'highlight-1': 'bg-board-primary/15',
@@ -27,11 +30,18 @@ const ROLE_STYLES: Record<DecorationRole, string> = {
   'highlight-3': 'bg-board-peer',
 };
 
-/** Roles that style an individual note rather than the whole cell. */
+/**
+ * Roles that mark an individual note: a small box around the digit, in the
+ * group's colour. Shape carries meaning as well as colour, so the roles still
+ * read apart without it: a solid box for the pattern, a dashed one for a
+ * candidate being removed.
+ */
 const NOTE_ROLE_STYLES: Partial<Record<DecorationRole, string>> = {
-  eliminated: 'text-board-eliminated line-through decoration-2',
-  primary: 'text-board-primary font-bold',
-  supporting: 'text-board-supporting font-bold',
+  primary: 'rounded-sm ring-2 ring-board-primary text-board-primary font-bold opacity-100',
+  supporting: 'rounded-sm ring-2 ring-board-supporting text-foreground font-bold opacity-100',
+  pivot: 'rounded-sm ring-2 ring-board-pivot text-foreground font-bold opacity-100',
+  eliminated:
+    'rounded-sm outline-dashed outline-2 outline-board-eliminated text-board-eliminated line-through decoration-2 opacity-100',
 };
 
 interface CellProps {
@@ -166,7 +176,13 @@ function NoteGrid({
   noteRoles,
   focusDigit,
 }: NoteGridProps): JSX.Element | null {
-  const hasAny = included.length > 0 || notes.excluded.length > 0 || notes.scratch.length > 0;
+  const decorated = (digit: number): boolean =>
+    (noteRoles[digit] ?? []).some((r) => NOTE_ROLE_STYLES[r] !== undefined);
+  const hasAny =
+    included.length > 0 ||
+    notes.excluded.length > 0 ||
+    notes.scratch.length > 0 ||
+    Object.keys(noteRoles).length > 0;
   if (!hasAny) return null;
 
   return (
@@ -177,7 +193,11 @@ function NoteGrid({
         const isLive = included.includes(digit);
         const excluded = notes.excluded.includes(digit);
         const isScratch = notes.scratch.includes(digit);
-        if (!isLive && !excluded && !isScratch) {
+        // A hint can point at a candidate the player never wrote down. It is
+        // still drawn — faintly, inside its box — because the reasoning is
+        // about the candidate, not about the player's notes.
+        const isGhost = !isLive && !excluded && !isScratch && decorated(digit);
+        if (!isLive && !excluded && !isScratch && !isGhost) {
           return <span key={digit} aria-hidden />;
         }
 
@@ -240,6 +260,8 @@ function NoteGrid({
               isFocusDigit && isScratch && 'scale-125 opacity-100',
               isFocusDigit && excluded && 'opacity-50',
               ...roleClasses,
+              // After the role styles, which force full opacity.
+              isGhost && 'opacity-60',
             )}
           >
             {digit}

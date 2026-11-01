@@ -172,6 +172,10 @@ export type DecorationRole =
   | 'supporting'
   /** A note this technique rules out. Typically drawn struck-through. */
   | 'eliminated'
+  /** The hinge of a wing: the cell the rest of the pattern turns on. */
+  | 'pivot'
+  /** The house (row, column or box) where a hint's reasoning happens. */
+  | 'house'
   /** A conflict: an entry that disagrees with the solution. */
   | 'error'
   /** A note that disagrees with the engine's candidates. */
