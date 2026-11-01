@@ -5,6 +5,11 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      screens: {
+        // Landscape with room for two columns: tablets, and phones on their
+        // side. Board on the left, controls on the right (see App).
+        land: { raw: '(orientation: landscape) and (min-width: 640px)' },
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

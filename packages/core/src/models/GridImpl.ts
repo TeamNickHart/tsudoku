@@ -196,3 +196,36 @@ export function applyHint(grid: Grid, hint: Hint): Grid {
 
   return buildGrid(newCells);
 }
+
+/**
+ * Remove specific candidates, returning a new grid.
+ *
+ * Not part of the SE port: SE only ever removes candidates through its own
+ * hints, which `applyHint` covers. This is for callers that know eliminations
+ * by other means — the game layer passing on a player's strikes, so the solver
+ * starts from what the player has already worked out rather than from values
+ * alone. Entries for solved cells, or for candidates already gone, are ignored.
+ */
+export function removeCandidates(
+  grid: Grid,
+  eliminations: ReadonlyArray<{ readonly cell: number; readonly digit: number }>,
+): Grid {
+  const masks = grid.cells.map((cell) => cell.candidates);
+  let changed = false;
+  for (const { cell, digit } of eliminations) {
+    const mask = masks[cell];
+    if (mask === undefined || grid.cells[cell]?.value !== null) continue;
+    const next = mask & ~candidateMask(digit);
+    if (next !== mask) {
+      masks[cell] = next;
+      changed = true;
+    }
+  }
+  if (!changed) return grid;
+
+  return buildGrid(
+    grid.cells.map((cell, i) =>
+      createCell(i, cell.value, cell.value === null ? (masks[i] ?? 0) : 0, cell.isGiven),
+    ),
+  );
+}

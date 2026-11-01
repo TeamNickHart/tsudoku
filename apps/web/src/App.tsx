@@ -188,16 +188,40 @@ export function App(): JSX.Element {
   // Controls are matched structurally rather than listed, so a new button
   // cannot forget to opt out; panels with non-button content opt out with
   // data-keep-selection.
+  //
+  // It has to be a *tap*: down and up on the same spot. Resetting on
+  // pointerdown cleared the selection whenever the player touched the page to
+  // scroll to the controls. A scroll ends in pointercancel (the browser takes
+  // the gesture over), and a press that wanders more than a few pixels is not
+  // a tap either, so neither resets anything.
   useEffect(() => {
-    const onPointerDown = (e: PointerEvent): void => {
+    const SLOP_PX = 10;
+    let press: { id: number; x: number; y: number } | null = null;
+    const onDown = (e: PointerEvent): void => {
+      press = null;
       if (!(e.target instanceof Element)) return;
       const keep = e.target.closest(
         'button, a, input, select, textarea, label, [role="grid"], [data-keep-selection]',
       );
-      if (keep === null) resetView();
+      if (keep === null) press = { id: e.pointerId, x: e.clientX, y: e.clientY };
     };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
+    const onUp = (e: PointerEvent): void => {
+      if (press === null || e.pointerId !== press.id) return;
+      const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+      press = null;
+      if (moved <= SLOP_PX) resetView();
+    };
+    const onCancel = (): void => {
+      press = null;
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onCancel);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
+    };
   }, [resetView]);
 
   const erase = useCallback(() => {
@@ -252,8 +276,21 @@ export function App(): JSX.Element {
   }, [game, enterDigit, erase, setMode, state.selected, mode, resetView]);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 px-4 py-6">
-      <header className="flex items-baseline justify-between">
+    // Portrait: header, board, controls stacked. Landscape (tablets, phones on
+    // their side): the board fills the left, sized to the screen's height, and
+    // the header and controls share a column on the right that scrolls on its
+    // own if it must — so reaching a control never moves the board.
+    <div
+      className={cn(
+        'mx-auto grid min-h-screen w-full max-w-2xl gap-4 px-4 py-6',
+        "[grid-template-areas:'header'_'board'_'controls'] grid-rows-[auto_auto_1fr]",
+        'land:h-dvh land:min-h-0 land:max-w-7xl land:gap-x-6 land:py-4',
+        "land:[grid-template-areas:'board_header'_'board_controls']",
+        'land:grid-cols-[min(calc(100dvh-2rem),60vw,48rem)_minmax(0,1fr)]',
+        'land:grid-rows-[auto_minmax(0,1fr)]',
+      )}
+    >
+      <header className="flex items-baseline justify-between [grid-area:header]">
         <h1 className="text-xl font-semibold tracking-tight">TSudoku</h1>
         <p className="text-right text-sm text-muted-foreground">
           <span className="tabular-nums">
@@ -263,199 +300,203 @@ export function App(): JSX.Element {
         </p>
       </header>
 
-      <Board
-        cells={cells}
-        selected={state.selected}
-        onTap={tapCell}
-        onDragStart={handleDragStart}
-        onPaint={paintSelection}
-        onActivate={activateCell}
-        focusDigit={focusDigit}
-      />
+      <div className="[grid-area:board] land:self-start">
+        <Board
+          cells={cells}
+          selected={state.selected}
+          onTap={tapCell}
+          onDragStart={handleDragStart}
+          onPaint={paintSelection}
+          onActivate={activateCell}
+          focusDigit={focusDigit}
+        />
+      </div>
 
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground tabular-nums">
-          {remaining} left
-          {errors.length > 0 && (
-            <span className="ml-2 text-board-error">{errors.length} wrong</span>
+      <div className="flex min-h-0 flex-col gap-4 [grid-area:controls] land:overflow-y-auto">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground tabular-nums">
+            {remaining} left
+            {errors.length > 0 && (
+              <span className="ml-2 text-board-error">{errors.length} wrong</span>
+            )}
+            {game.hasSavePoint && <span className="ml-2">· Save point set</span>}
+          </span>
+          {solved ? (
+            <span className="font-medium text-board-primary">Solved</span>
+          ) : (
+            // Only reachable once the whole band is solved and repeats resume.
+            solvedPuzzles.has(puzzle.puzzle) && (
+              <span className="text-muted-foreground">Solved before</span>
+            )
           )}
-          {game.hasSavePoint && <span className="ml-2">· Save point set</span>}
-        </span>
-        {solved ? (
-          <span className="font-medium text-board-primary">Solved</span>
-        ) : (
-          // Only reachable once the whole band is solved and repeats resume.
-          solvedPuzzles.has(puzzle.puzzle) && (
-            <span className="text-muted-foreground">Solved before</span>
-          )
-        )}
-      </div>
+        </div>
 
-      <div className="flex gap-2" role="group" aria-label="Input mode">
-        {(Object.keys(MODE_LABELS) as InputMode[]).map((m) => (
-          <Button
-            key={m}
-            variant={mode === m ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode(m)}
-            className={cn('flex-1')}
-            aria-pressed={mode === m}
-          >
-            {MODE_LABELS[m]}
-          </Button>
-        ))}
-      </div>
-
-      <NumberPad
-        counts={counts}
-        onDigit={enterDigit}
-        onErase={erase}
-        focusDigit={focusDigit}
-        // Only erase needs a selection. Digits stay live so a digit can be
-        // focused to scan the board without selecting a cell first — which is
-        // exactly when you want to look.
-        eraseDisabled={state.selected.length === 0 || targetLocked}
-        entryBlocked={targetLocked}
-        unavailableDigits={unavailableDigits}
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => game.dispatch({ type: 'undo' })}
-          disabled={!game.canUndo}
-        >
-          Undo
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => game.dispatch({ type: 'redo' })}
-          disabled={!game.canRedo}
-        >
-          Redo
-        </Button>
-        {/*
-         * One save point at a time. Setting it bookmarks the board; returning
-         * puts values and every kind of mark back exactly as they were (redo
-         * can still bring the attempt back); clearing it means "I'm satisfied
-         * with what I've done since".
-         */}
-        {game.hasSavePoint ? (
-          <>
+        <div className="flex gap-2" role="group" aria-label="Input mode">
+          {(Object.keys(MODE_LABELS) as InputMode[]).map((m) => (
             <Button
-              variant="outline"
+              key={m}
+              variant={mode === m ? 'default' : 'outline'}
               size="sm"
-              onClick={() => game.dispatch({ type: 'restoreSavePoint' })}
-              disabled={!game.canRestoreSavePoint}
+              onClick={() => setMode(m)}
+              className={cn('flex-1')}
+              aria-pressed={mode === m}
             >
-              Return to save point
+              {MODE_LABELS[m]}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => game.dispatch({ type: 'clearSavePoint' })}
-            >
-              Clear save point
-            </Button>
-          </>
-        ) : (
+          ))}
+        </div>
+
+        <NumberPad
+          counts={counts}
+          onDigit={enterDigit}
+          onErase={erase}
+          focusDigit={focusDigit}
+          // Only erase needs a selection. Digits stay live so a digit can be
+          // focused to scan the board without selecting a cell first — which is
+          // exactly when you want to look.
+          eraseDisabled={state.selected.length === 0 || targetLocked}
+          entryBlocked={targetLocked}
+          unavailableDigits={unavailableDigits}
+        />
+
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => game.dispatch({ type: 'setSavePoint' })}
-            title="Bookmark the board so you can try an idea and come back"
+            onClick={() => game.dispatch({ type: 'undo' })}
+            disabled={!game.canUndo}
           >
-            Save point
+            Undo
           </Button>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => game.dispatch({ type: 'fillNotes' })}
-          title="Fill notes with the engine's candidates (selection, or whole board)"
-        >
-          Auto-notes
-        </Button>
-        <Button variant="outline" size="sm" onClick={game.requestHint}>
-          Hint
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            game.dispatch({ type: 'reset' });
-            if (settings.autoNotes) game.dispatch({ type: 'fillNotes', all: true });
-          }}
-        >
-          Reset
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowSettings((open) => !open)}
-          aria-expanded={showSettings}
-        >
-          Settings
-        </Button>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={newPuzzle}>
-          New puzzle
-        </Button>
-      </div>
-
-      {showSettings && (
-        <SettingsPanel
-          settings={settings}
-          solvedPuzzles={solvedPuzzles}
-          onSetBand={(bandId) => {
-            setBand(bandId);
-            // Switching band should show a puzzle from it straight away —
-            // otherwise the setting looks like it did nothing until the next
-            // "New puzzle" press.
-            const next = randomPuzzleInBand(bandId, puzzle.puzzle, solvedPuzzles);
-            setPuzzle(next);
-            game.newGame(next.puzzle);
-          }}
-          onToggleAutoSolve={toggleAutoSolve}
-          onSetAutoNotes={setAutoNotes}
-          onClose={() => setShowSettings(false)}
-          onClearSavedData={() => {
-            // Confirmed because it is one tap from erasing the solved
-            // history, which cannot be rebuilt.
-            if (!window.confirm('Clear your settings and solved puzzles from this browser?')) {
-              return;
-            }
-            clearSavedData();
-            window.location.reload();
-          }}
-        />
-      )}
-
-      {hint && (
-        <div
-          data-keep-selection
-          className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-medium">{hint.technique}</p>
-              <p className="mt-1 text-muted-foreground">{hint.explanation}</p>
-            </div>
-            <Button variant="ghost" size="sm" onClick={game.dismissHint}>
-              Dismiss
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => game.dispatch({ type: 'redo' })}
+            disabled={!game.canRedo}
+          >
+            Redo
+          </Button>
+          {/*
+           * One save point at a time. Setting it bookmarks the board; returning
+           * puts values and every kind of mark back exactly as they were (redo
+           * can still bring the attempt back); clearing it means "I'm satisfied
+           * with what I've done since".
+           */}
+          {game.hasSavePoint ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => game.dispatch({ type: 'restoreSavePoint' })}
+                disabled={!game.canRestoreSavePoint}
+              >
+                Return to save point
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => game.dispatch({ type: 'clearSavePoint' })}
+              >
+                Clear save point
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => game.dispatch({ type: 'setSavePoint' })}
+              title="Bookmark the board so you can try an idea and come back"
+            >
+              Save point
             </Button>
-          </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => game.dispatch({ type: 'fillNotes' })}
+            title="Fill notes with the engine's candidates (selection, or whole board)"
+          >
+            Auto-notes
+          </Button>
+          <Button variant="outline" size="sm" onClick={game.requestHint}>
+            Hint
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              game.dispatch({ type: 'reset' });
+              if (settings.autoNotes) game.dispatch({ type: 'fillNotes', all: true });
+            }}
+          >
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowSettings((open) => !open)}
+            aria-expanded={showSettings}
+          >
+            Settings
+          </Button>
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={newPuzzle}>
+            New puzzle
+          </Button>
         </div>
-      )}
 
-      <p className="mt-auto text-xs text-muted-foreground">
-        Tap a cell to enter a value; tap a filled cell to see where its digit can go. Drag across
-        cells to select a run for notes — tap a cell to add or remove it. Tap off the board to clear
-        everything. Scratch marks are working notes that never touch your candidates. <kbd>V</kbd>{' '}
-        value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>S</kbd> scratch · <kbd>Esc</kbd>{' '}
-        clear · <kbd>⌘Z</kbd> undo
-      </p>
+        {showSettings && (
+          <SettingsPanel
+            settings={settings}
+            solvedPuzzles={solvedPuzzles}
+            onSetBand={(bandId) => {
+              setBand(bandId);
+              // Switching band should show a puzzle from it straight away —
+              // otherwise the setting looks like it did nothing until the next
+              // "New puzzle" press.
+              const next = randomPuzzleInBand(bandId, puzzle.puzzle, solvedPuzzles);
+              setPuzzle(next);
+              game.newGame(next.puzzle);
+            }}
+            onToggleAutoSolve={toggleAutoSolve}
+            onSetAutoNotes={setAutoNotes}
+            onClose={() => setShowSettings(false)}
+            onClearSavedData={() => {
+              // Confirmed because it is one tap from erasing the solved
+              // history, which cannot be rebuilt.
+              if (!window.confirm('Clear your settings and solved puzzles from this browser?')) {
+                return;
+              }
+              clearSavedData();
+              window.location.reload();
+            }}
+          />
+        )}
+
+        {hint && (
+          <div
+            data-keep-selection
+            className="rounded-lg border border-board-primary/40 bg-board-primary/5 p-3 text-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-medium">{hint.technique}</p>
+                <p className="mt-1 text-muted-foreground">{hint.explanation}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={game.dismissHint}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-auto text-xs text-muted-foreground">
+          Tap a cell to enter a value; tap a filled cell to see where its digit can go. Drag across
+          cells to select a run for notes — tap a cell to add or remove it. Tap off the board to
+          clear everything. Scratch marks are working notes that never touch your candidates.{' '}
+          <kbd>V</kbd> value · <kbd>N</kbd> note · <kbd>X</kbd> strike · <kbd>S</kbd> scratch ·{' '}
+          <kbd>Esc</kbd> clear · <kbd>⌘Z</kbd> undo
+        </p>
+      </div>
     </div>
   );
 }

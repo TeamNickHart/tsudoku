@@ -858,6 +858,21 @@ An AI layer on top is optional polish.
 
 Newest first. Keep entries short — what changed and why it mattered.
 
+### 2026-11-01
+
+- **Hints no longer repeat work the player has done.** `nextHint` ran the
+  solver on candidates derived from values alone, so a Pointing the player had
+  applied by striking its eliminations came back, and steps that only appear
+  after those eliminations stayed hidden. `toPlayerGrid` now passes on the
+  player's eliminations (strikes, and digits left out of a noted cell), but
+  only correct ones, so a mistaken strike cannot lead a hint astray.
+- **Landscape layout.** Tablets and phones on their side get the board on the
+  left, sized to the screen height, with the controls in a column beside it.
+  Measured at iPad, iPad mini, iPad Air and phone landscape sizes: no page
+  scroll. Scrolling no longer clears the selection — tapping off the board
+  resets only on a real tap.
+- **A drag selects only empty cells.**
+
 ### 2026-10-20
 
 - **Notes stopped getting mixed up and reverted.** Three causes, all fixed: a

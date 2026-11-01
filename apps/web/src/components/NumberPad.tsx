@@ -49,7 +49,9 @@ export function NumberPad({
           That cell is already filled. Undo to change it.
         </p>
       )}
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+      {/* Two rows of five in the landscape side column, where ten across
+          would make each key too narrow to hit. */}
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10 land:grid-cols-5">
         {Array.from({ length: SIZE }, (_, i) => i + 1).map((digit) => {
           const complete = (counts[digit] ?? 0) >= SIZE;
           const focused = focusDigit === digit;
