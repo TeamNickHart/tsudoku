@@ -46,7 +46,7 @@ export {
 } from './models/board.js';
 
 // Grid factory and operations
-export { createGrid, recomputeCandidates, applyHint } from './models/GridImpl.js';
+export { createGrid, recomputeCandidates, applyHint, removeCandidates } from './models/GridImpl.js';
 
 // Solver
 export { Solver } from './solver/Solver.js';
