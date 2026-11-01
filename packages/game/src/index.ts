@@ -69,6 +69,7 @@ export {
 export type { HintProgress } from './hints.js';
 
 export { markedCandidates, placeWithAutoSolve } from './autoSolve.js';
+export { deadEndCells, isSolvable, undoUntilSolvable } from './recovery.js';
 export type { AutoSolveScope } from './autoSolve.js';
 
 export { presentHint } from './hintPresentation.js';

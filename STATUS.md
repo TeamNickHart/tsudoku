@@ -860,6 +860,19 @@ An AI layer on top is optional polish.
 
 Newest first. Keep entries short — what changed and why it mattered.
 
+### 2026-11-03 (later)
+
+- **Undo until solvable** (`undoUntilSolvable`, `isSolvable`). Steps back,
+  as ordinary undo, to the most recent point where every placed value was
+  right and no empty cell had its answer ruled out by the player's marks —
+  marks count because a wrong strike would otherwise lead auto-solve into the
+  same mistake again. The button is enabled whenever there is history, so it
+  never gives a mistake away; asking says "No mistakes found" or how many steps
+  it undid.
+- **Recovery prompt.** When an empty cell has no possible value left by the
+  player's marks (`deadEndCells`), the app offers to recover the board. "Not
+  now" keeps the offer away until the dead end clears and recurs.
+
 ### 2026-11-03
 
 - **Auto-solve for naked singles** (`placeWithAutoSolve`). With it on, placing

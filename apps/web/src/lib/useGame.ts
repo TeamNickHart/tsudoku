@@ -8,9 +8,11 @@ import {
   clearDecorations,
   clearSavePoint,
   createGame,
+  deadEndCells,
   digitCounts,
   errorCells,
   fillNotes,
+  isSolvable,
   isSolved,
   hintProgress,
   nextHint,
@@ -29,6 +31,7 @@ import {
   toPlayerGrid,
   toggleNoteOnSelection,
   undo,
+  undoUntilSolvable,
 } from '@tsudoku/game';
 import type { Hint } from '@tsudoku/core';
 import type { AutoSolveScope, GameState, HintPresentation, Move, NoteKind } from '@tsudoku/game';
@@ -63,6 +66,7 @@ type Action =
   | { type: 'setSavePoint' }
   | { type: 'restoreSavePoint' }
   | { type: 'clearSavePoint' }
+  | { type: 'undoUntilSolvable' }
   | { type: 'reset' }
   | { type: 'fillNotes'; all?: boolean }
   | { type: 'showHint' };
@@ -169,6 +173,8 @@ function reducer(state: GameState, action: Action): GameState {
       return restoreSavePoint(clearDecorations(state));
     case 'clearSavePoint':
       return clearSavePoint(state);
+    case 'undoUntilSolvable':
+      return undoUntilSolvable(clearDecorations(state));
     case 'reset':
       return resetGame(state);
 
@@ -178,6 +184,9 @@ function reducer(state: GameState, action: Action): GameState {
       return setSelection(state, []);
   }
 }
+
+/** How long the note after "Undo until solvable" stays up. */
+const RECOVERY_NOTE_MS = 3000;
 
 /** How long auto-filled cells are pointed out after a placement. */
 const AUTO_FILL_FLASH_MS = 1000;
@@ -256,6 +265,43 @@ export function useGame(initialPuzzle: string) {
     return () => clearTimeout(timer);
   }, [state.history, state.historyIndex]);
 
+  /**
+   * Recovering from a mistake: step back to the last solvable board.
+   *
+   * Asking is deliberate, so the answer may say whether there was a mistake
+   * at all — "nothing to undo" — which the board otherwise never reveals.
+   */
+  const [recoveryNote, setRecoveryNote] = useState<string | null>(null);
+  const recover = useCallback(() => {
+    if (isSolvable(state)) {
+      setRecoveryNote('No mistakes found — nothing to undo.');
+      return;
+    }
+    const steps = state.historyIndex - undoUntilSolvable(state).historyIndex;
+    dispatch({ type: 'undoUntilSolvable' });
+    setRecoveryNote(
+      `Undid ${steps} ${steps === 1 ? 'step' : 'steps'} back to the last solvable board.`,
+    );
+  }, [state]);
+  useEffect(() => {
+    if (recoveryNote === null) return;
+    const timer = setTimeout(() => setRecoveryNote(null), RECOVERY_NOTE_MS);
+    return () => clearTimeout(timer);
+  }, [recoveryNote]);
+
+  /**
+   * An empty cell with no possible value left: the mistake is now plain to
+   * see, so the app offers to recover. "Not now" keeps the offer away until
+   * the board is fixed and then breaks again, rather than asking after every
+   * move.
+   */
+  const deadEnd = useMemo(() => deadEndCells(state).length > 0, [state]);
+  const [deadEndDeclined, setDeadEndDeclined] = useState(false);
+  useEffect(() => {
+    if (!deadEnd) setDeadEndDeclined(false);
+  }, [deadEnd]);
+  const declineRecovery = useCallback(() => setDeadEndDeclined(true), []);
+
   // Once every proposed change is made the hint has done its job: show it as
   // done for a beat, then leave hint mode. Undoing the last step inside that
   // beat cancels the dismissal, because progress is derived from the board.
@@ -301,6 +347,10 @@ export function useGame(initialPuzzle: string) {
     mode,
     setMode: changeMode,
     autoFilled,
+    recover,
+    recoveryNote,
+    offerRecovery: deadEnd && !deadEndDeclined,
+    declineRecovery,
     hint: active?.presentation ?? null,
     hintProgress: progress,
     requestHint,

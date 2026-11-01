@@ -329,6 +329,11 @@ export function App(): JSX.Element {
               <span className="ml-2 text-board-error">{errors.length} wrong</span>
             )}
             {game.hasSavePoint && <span className="ml-2">· Save point set</span>}
+            {game.recoveryNote !== null && (
+              <span className="ml-2" role="status">
+                · {game.recoveryNote}
+              </span>
+            )}
           </span>
           {solved ? (
             <span className="font-medium text-board-primary">Solved</span>
@@ -384,6 +389,19 @@ export function App(): JSX.Element {
             disabled={!game.canRedo}
           >
             Redo
+          </Button>
+          {/*
+           * Enabled whenever there is history, not only when the board is
+           * wrong: a button that lit up on a mistake would give it away.
+           */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={game.recover}
+            disabled={!game.canUndo}
+            title="Step back to the last point where the board could still be solved"
+          >
+            Undo until solvable
           </Button>
           {/*
            * One save point at a time. Setting it bookmarks the board; returning
@@ -491,6 +509,27 @@ export function App(): JSX.Element {
               window.location.reload();
             }}
           />
+        )}
+
+        {game.offerRecovery && (
+          <div
+            data-keep-selection
+            role="alert"
+            className="rounded-lg border border-board-eliminated/50 bg-board-eliminated/5 p-3 text-sm"
+          >
+            <p>
+              The puzzle has one or more values or marks entered incorrectly and is not solvable.
+              Recover the board?
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" onClick={game.recover}>
+                Recover
+              </Button>
+              <Button variant="ghost" size="sm" onClick={game.declineRecovery}>
+                Not now
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Neutral on purpose: green means "the cell to fill" on the board,
